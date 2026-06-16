@@ -1290,31 +1290,42 @@ function makeTableRow(item, tbodyContext){
   tr.id=(tbodyContext==='task'?'task-row-':'list-row-')+item.id;
   if(item.done) tr.className='lt-done';
 
+  const grpBg=item.groupColor?item.groupColor+'22':'var(--surface2)';
   const grpTag=item.group
-    ?`<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:${item.groupColor?item.groupColor+'22':'var(--surface2)'};color:var(--tp);font-weight:500">${esc(item.group)}</span>`
+    ?'<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:'+grpBg+';color:var(--tp);font-weight:500">'+esc(item.group)+'</span>'
     :'<span style="color:var(--tm)">-</span>';
 
-  const editAttr=(field)=>item.kind==='task'?`ondblclick="startCellEdit(event,'task','${item.id}','${field}')"`
-    :(field==='text'||field==='priority'?`ondblclick="startCellEdit(event,'routine','${item.id}','${field}')"`:``);
+  const ea=(kind,field)=>'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"';
+  const editAttr=(field)=>item.kind==='task'?ea('task',field)
+    :(field==='text'||field==='priority'?ea('routine',field):'');
 
   const toggleFn=item.kind==='task'
-    ?`toggleListItem('task','${item.id}')`
-    :`toggleListItem('routine','${item.id}')`;
+    ?'toggleListItem(\'task\',\''+item.id+'\')'
+    :'toggleListItem(\'routine\',\''+item.id+'\')';
 
-  tr.innerHTML=`
-    <td><span class="lt-kind-tag ${item.kind==='task'?'lt-kind-task':'lt-kind-routine'}">${item.kind==='task'?'일반':'루틴'}</span></td>
-    <td class="editable" ${editAttr('group')}>${grpTag}</td>
-    <td class="editable" ${editAttr('text')}><div class="lt-text">${esc(item.text)}</div></td>
-    <td class="editable" style="white-space:nowrap;font-size:12px" ${editAttr('startDate')}>${esc(item.startDate)}</td>
-    <td class="editable" style="white-space:nowrap;font-size:12px" ${editAttr('endDate')}>${esc(item.endDate)}</td>
-    <td><div class="lt-check${item.done?' checked':''}" onclick="${toggleFn}">${item.done?'✓':''}</div></td>
-    <td class="editable" ${editAttr('priority')}><span class="prio-badge ${PRIO_CLASS[item.priority]}">${PRIO_LABEL[item.priority]}</span></td>
-    <td class="editable" style="font-size:12px;color:var(--tm)" ${editAttr('description')}>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span>${item.description||'-'}</span>
-        ${item.kind==='task'?`<button class="task-edit-icon" onclick="${tbodyContext==='task'?`editTaskRow('${item.id}')`:`editListItem('${item.id}')`}" title="수정" style="flex-shrink:0">✎</button>`:''}
-      </div>
-    </td>`;
+  const editOnclick=tbodyContext==='task'?'editTaskRow(\''+item.id+'\')':'editListItem(\''+item.id+'\')';
+  const editBtn=item.kind==='task'
+    ?'<button class="task-edit-icon" onclick="'+editOnclick+'" title="수정" style="flex-shrink:0">✎</button>'
+    :'';
+
+  const kindClass=item.kind==='task'?'lt-kind-task':'lt-kind-routine';
+  const kindLabel=item.kind==='task'?'일반':'루틴';
+  const checkClass='lt-check'+(item.done?' checked':'');
+  const checkMark=item.done?'✓':'';
+
+  tr.innerHTML=
+    '<td><span class="lt-kind-tag '+kindClass+'">'+kindLabel+'</span></td>'+
+    '<td class="editable" '+editAttr('group')+'>'+grpTag+'</td>'+
+    '<td class="editable" '+editAttr('text')+'><div class="lt-text">'+esc(item.text)+'</div></td>'+
+    '<td class="editable" style="white-space:nowrap;font-size:12px" '+editAttr('startDate')+'>'+esc(item.startDate)+'</td>'+
+    '<td class="editable" style="white-space:nowrap;font-size:12px" '+editAttr('endDate')+'>'+esc(item.endDate)+'</td>'+
+    '<td><div class="'+checkClass+'" onclick="'+toggleFn+'">'+checkMark+'</div></td>'+
+    '<td class="editable" '+editAttr('priority')+'><span class="prio-badge '+PRIO_CLASS[item.priority]+'">'+PRIO_LABEL[item.priority]+'</span></td>'+
+    '<td class="editable" style="font-size:12px;color:var(--tm)" '+editAttr('description')+'>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+        '<span>'+(item.description||'-')+'</span>'+editBtn+
+      '</div>'+
+    '</td>';
   return tr;
 }
 
@@ -1489,24 +1500,6 @@ function renderAllTasks(){
     tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--tm)">등록된 항목이 없습니다</td></tr>`;
     return;
   }
-
-  items.forEach(item=>{
-    const tr=document.createElement('tr');
-    if(item.done) tr.className='lt-done';
-
-    const grpTag=item.group
-      ?`<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:${item.groupColor?item.groupColor+'22':'var(--surface2)'};color:var(--tp);font-weight:500">${esc(item.group)}</span>`
-      :'<span style="color:var(--tm)">-</span>';
-
-    const startFmt=item.kind==='task'&&item.startDate.includes('-')
-      ?item.startDate.slice(5).replace('-','/')
-      :item.startDate;
-    const endFmt=item.endDate&&item.endDate!=='-'
-      ?(item.endDate.includes('-')?item.endDate.slice(5).replace('-','/'):item.endDate)
-      :'-';
-
-    const descHtml=item.description
-      ?`<div class="lt-desc">${esc(item.description)}</div>`:'';
 
   items.forEach(item=>{
     const tr=makeTableRow(item,'list');
