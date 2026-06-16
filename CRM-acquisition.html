@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>신규 고객 진행 상황 · KG Hok</title>
+
+<!-- ============================================================
+     Firebase SDK (compat) — 팀 실시간 공유에 사용됩니다.
+     아래 firebaseConfig 만 채우면 '팀 공유 모드'로 전환됩니다.
+     비워두면 이 브라우저에만 저장되는 '로컬 모드'로 동작합니다.
+     ============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+
+<style>
+:root{
+  --bg:#F6F7F9; --surface:#FFFFFF; --ink:#1A2230; --muted:#707A89;
+  --line:#E5E9EF; --line-strong:#D4DAE3;
+  --accent:#2F4BC4; --accent-soft:#ECEFFB; --accent-ink:#26399B;
+  --danger:#C0291F; --danger-soft:#FBE3E1;
+  --ok:#15803D; --ok-soft:#DCF3E3;
+  --radius:10px;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic","Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+
+.app-header{
+  background:var(--surface); border-bottom:1px solid var(--line);
+  padding:18px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  position:sticky; top:0; z-index:50;
+}
+.brand{display:flex; align-items:baseline; gap:10px; margin-right:auto}
+.brand h1{font-size:19px; font-weight:700; letter-spacing:-.01em; margin:0}
+.brand .count{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums}
+.mode-badge{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap;}
+.mode-badge .dot{width:7px;height:7px;border-radius:50%}
+.mode-shared{background:var(--ok-soft); color:var(--ok)} .mode-shared .dot{background:var(--ok)}
+.mode-local{background:#FEF3DD; color:#B45309} .mode-local .dot{background:#D98A1A}
+
+.btn{border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); padding:9px 15px; border-radius:8px; cursor:pointer; font-weight:600; transition:background .12s,border-color .12s;}
+.btn:hover{background:#F2F4F8}
+.btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn-primary:hover{background:#2640AD}
+
+.summary{display:flex; gap:8px; flex-wrap:wrap; padding:14px 24px 0;}
+.summary-pill{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:var(--surface); cursor:pointer; font-size:12.5px; font-weight:600; color:var(--muted); transition:border-color .12s, background .12s;}
+.summary-pill:hover{background:#F1F3F7}
+.summary-pill[aria-pressed="true"]{border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft)}
+.summary-pill .n{font-variant-numeric:tabular-nums; color:var(--ink)}
+.summary-link{display:inline-flex; align-items:center; gap:5px; padding:6px 13px; border:1px solid var(--accent); border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); font-size:12.5px; font-weight:700; text-decoration:none; white-space:nowrap;}
+.summary-link:hover{background:#E1E7FB}
+
+.toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:14px 24px 6px;}
+.search{flex:1 1 260px; min-width:200px; position:relative;}
+.search input{width:100%; padding:9px 12px 9px 34px; border:1px solid var(--line-strong); border-radius:8px; background:var(--surface);}
+.search input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.search svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted)}
+.link-clear{background:none;border:none;color:var(--muted);cursor:pointer;font-weight:600;padding:8px}
+.link-clear:hover{color:var(--ink)}
+
+.table-scroll{margin:8px 24px 80px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); overflow:auto; max-height:calc(100dvh - 210px);}
+table{border-collapse:separate; border-spacing:0; width:max-content; min-width:100%}
+thead th{position:sticky; top:0; z-index:20; background:#FBFCFD; text-align:left; font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.01em; white-space:nowrap; padding:11px 13px; border-bottom:1px solid var(--line-strong);}
+thead th.sortable{cursor:pointer; user-select:none}
+thead th.sortable:hover{color:var(--ink)}
+thead th .arrow{opacity:.4; font-size:10px; margin-left:3px}
+thead th.sorted .arrow{opacity:1; color:var(--accent)}
+tbody td{padding:8px 13px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; font-variant-numeric:tabular-nums;}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#F8FAFC}
+td.idx{color:var(--muted); font-weight:600; text-align:right; width:48px}
+td.wrap{white-space:normal; max-width:220px; min-width:130px}
+td.date-cell{color:var(--ink)}
+td.date-cell.empty-date{color:#C2C8D0}
+.mono{font-family:var(--mono); font-size:13px}
+td.editable{cursor:cell}
+td.memo-col{max-width:220px}
+.memo-ellipsis{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+td.editable:hover{background:#EEF2FB!important; box-shadow:inset 0 0 0 1px var(--accent-soft)}
+td input.inline-edit, td textarea.inline-edit{width:100%; min-width:96px; padding:4px 7px; border:1px solid var(--accent); border-radius:6px; font:inherit; background:#fff;}
+td input.inline-edit:focus, td textarea.inline-edit:focus{outline:none; box-shadow:0 0 0 3px var(--accent-soft)}
+td textarea.inline-edit{min-width:200px; min-height:64px; resize:vertical; line-height:1.5; white-space:pre-wrap}
+
+.yn-btn{border:1px solid transparent; border-radius:6px; padding:3px 12px; font-size:12px; font-weight:700; cursor:pointer; min-width:42px;}
+.yn-btn.y{background:var(--ok-soft); color:var(--ok)}
+.yn-btn.n{background:#F0F2F5; color:#A4ACB7}
+.yn-btn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+
+.row-actions{display:flex; gap:4px}
+.icon-btn{border:1px solid var(--line); background:var(--surface); border-radius:7px; width:30px; height:30px; cursor:pointer; color:var(--muted); display:inline-flex; align-items:center; justify-content:center; transition:.12s;}
+.icon-btn:hover{color:var(--ink); border-color:var(--line-strong); background:#F2F4F8}
+.icon-btn.del:hover{color:var(--danger); border-color:var(--danger); background:var(--danger-soft)}
+
+.empty{padding:60px 24px; text-align:center; color:var(--muted)}
+.empty strong{display:block; color:var(--ink); font-size:15px; margin-bottom:6px}
+
+.scrim{position:fixed; inset:0; background:rgba(20,28,42,.42); opacity:0; pointer-events:none; transition:opacity .2s; z-index:90}
+.scrim.open{opacity:1; pointer-events:auto}
+.drawer{position:fixed; top:0; right:0; height:100%; width:420px; max-width:92vw; background:var(--surface); box-shadow:-12px 0 40px rgba(20,28,42,.18); transform:translateX(100%); transition:transform .24s cubic-bezier(.32,.72,.32,1); z-index:91; display:flex; flex-direction:column;}
+.drawer.open{transform:translateX(0)}
+.drawer-head{padding:20px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between}
+.drawer-head h2{margin:0; font-size:17px; font-weight:700}
+.drawer-body{padding:18px 22px; overflow-y:auto; flex:1}
+.drawer-foot{padding:16px 22px; border-top:1px solid var(--line); display:flex; gap:10px}
+.drawer-foot .btn{flex:1; text-align:center; padding:11px}
+.field{margin-bottom:14px}
+.field label{display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin-bottom:6px}
+.field input, .field select, .field textarea{width:100%; padding:9px 11px; border:1px solid var(--line-strong); border-radius:8px; background:var(--surface); font:inherit;}
+.field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.field textarea{resize:vertical; min-height:72px; line-height:1.5}
+.seg{display:flex; gap:0; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden}
+.seg button{flex:1; padding:9px; background:var(--surface); border:none; cursor:pointer; font-weight:700; color:var(--muted)}
+.seg button.active{background:var(--accent); color:#fff}
+.seg button:first-child.active{background:#8A929E}
+
+.toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ink); color:#fff; padding:11px 18px; border-radius:9px; font-weight:600; opacity:0; pointer-events:none; transition:.22s; z-index:120; box-shadow:0 8px 24px rgba(0,0,0,.2);}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+.memo-tip{position:fixed; z-index:130; max-width:320px; background:var(--ink); color:#fff; padding:9px 12px; border-radius:8px; font-size:12.5px; line-height:1.5; box-shadow:0 8px 24px rgba(0,0,0,.22); pointer-events:none; opacity:0; transition:opacity .12s; white-space:pre-wrap; word-break:break-word;}
+.memo-tip.show{opacity:1}
+.memo-tip::before{content:"메모"; display:block; font-size:10.5px; font-weight:700; letter-spacing:.04em; color:#9AA6FF; margin-bottom:3px;}
+
+.setup-hint{margin:14px 24px 0; padding:12px 16px; background:#FEF8EC; border:1px solid #F4DFB0; border-radius:9px; font-size:13px; color:#8A5A12; line-height:1.6;}
+.setup-hint code{background:#fff; border:1px solid #EED9A8; padding:1px 6px; border-radius:5px; font-family:var(--mono); font-size:12px}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:560px){
+  .app-header{padding:14px 16px}
+  .summary,.toolbar{padding-left:16px;padding-right:16px}
+  .table-scroll{margin-left:16px;margin-right:16px; max-height:calc(100dvh - 250px)}
+}
+</style>
+</head>
+<body>
+
+
+<header class="app-header">
+  <div class="brand"><h1>신규 고객 진행 상황</h1><span class="count" id="count">0건</span></div>
+  <span class="mode-badge" id="modeBadge"><span class="dot"></span><span id="modeText">연결 중…</span></span>
+  <button class="btn" id="csvBtn">CSV 내보내기</button>
+  <button class="btn btn-primary" id="addBtn">+ 신규 고객</button>
+
+</header>
+
+<div class="setup-hint" id="setupHint" style="display:none">
+  현재 <strong>로컬 모드</strong>입니다 — 이 브라우저에만 저장되어 팀원과 공유되지 않습니다.
+  팀 공유를 켜려면 이 파일 상단 <code>firebaseConfig</code> 값을 기존 todo 앱의 설정과 동일하게 채워주세요.
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="toolbar">
+  <div class="search">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <input id="search" type="search" placeholder="상호명, 사업자번호, 이메일, 신용 결과 검색">
+  </div>
+  <button class="link-clear" id="clearBtn">필터 초기화</button>
+</div>
+
+<div class="table-scroll">
+  <table><thead><tr id="theadRow"></tr></thead><tbody id="tbody"></tbody></table>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head"><h2 id="drawerTitle">신규 고객</h2><button class="icon-btn" id="closeDrawer" aria-label="닫기">✕</button></div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot"><button class="btn" id="cancelBtn">취소</button><button class="btn btn-primary" id="saveBtn">저장</button></div>
+</aside>
+
+<div class="memo-tip" id="memoTip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   1. 설정: 기존 todo 앱의 firebaseConfig 값을 그대로 붙여넣으면 팀 공유 모드가 됩니다.
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyDxeLZ_V0WF46pQsUjnX3cXHGcpcSoxgK8",
+  authDomain: "kg-hok.firebaseapp.com",
+  projectId: "kg-hok",
+  storageBucket: "kg-hok.firebasestorage.app",
+  messagingSenderId: "1087565591407",
+  appId: "1:1087565591407:web:ebe41f0d4bf0d096c56e9a"
+};
+const COLLECTION = "customers";
+const LS_KEY = "kg_hok_customers";
+
+/* ============================================================
+   2. 스키마 — 이 FIELDS 만 고치면 표/폼/CSV 가 모두 따라옵니다.
+      type: bizno(숫자) / text / date(yy-mm-dd) / yn(Y/N)
+   ============================================================ */
+const FIELDS = [
+  {key:"bizNo",            label:"사업자등록번호",       type:"bizno"},
+  {key:"companyName",      label:"상호명",              type:"text"},
+  {key:"email",            label:"이메일",              type:"text"},
+  {key:"applyDate",        label:"신청일",              type:"date"},
+  {key:"creditResult",     label:"기업 신용 결과",       type:"text"},
+  {key:"mail2Date",        label:"2차 신청 메일 발송일",  type:"date"},
+  {key:"apply2Date",       label:"2차 신청일",           type:"date"},
+  {key:"finalResult",      label:"최종 심사 결과",       type:"yn"},
+  {key:"refinance",        label:"대환 여부",           type:"yn"},
+  {key:"ob",               label:"OB",                 type:"yn"},
+  {key:"dbReqDate",        label:"DB 등록 요청일",       type:"date"},
+  {key:"contractSentDate", label:"계약서 발송일",        type:"date"},
+  {key:"contractDoneDate", label:"계약 완료일",          type:"date"},
+  {key:"virtualAccount",   label:"가상 계좌 부여",       type:"yn"},
+  {key:"extraAcctDate",    label:"추가 계정 생성일",      type:"date"},
+  {key:"memo",             label:"메모",               type:"text", multiline:true}
+];
+
+/* 진행 상황 요약/필터 칩 */
+const CHIPS = [
+  {id:"",       label:"전체",          test:()=>true},
+  {id:"new",    label:"신규 신청",      test:r=>r.applyDate && !r.creditResult},
+  {id:"second", label:"2차 신청",       test:r=>!!r.apply2Date},
+  {id:"final",  label:"최종 심사 결과",  test:r=>r.finalResult==="Y"},
+  {id:"done",   label:"계약 완료",      test:r=>!!r.contractDoneDate},
+  {id:"extra",  label:"추가 계정 생성",  test:r=>!!r.extraAcctDate}
+];
+
+/* ============================================================
+   3. 저장소 계층 (Firebase 있으면 실시간 공유, 없으면 localStorage)
+   ============================================================ */
+let MODE="local", db=null;
+const Store={
+  init(){
+    const ok=firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE_");
+    if(ok && window.firebase){
+      try{ firebase.initializeApp(firebaseConfig); db=firebase.firestore(); MODE="shared"; }
+      catch(e){ console.warn("Firebase 초기화 실패, 로컬 모드:",e); MODE="local"; }
+    }
+  },
+  subscribe(cb){
+    this._cb=cb;
+    if(MODE==="shared"){
+      db.collection(COLLECTION).onSnapshot(s=>{ const r=[]; s.forEach(d=>r.push({id:d.id,...d.data()})); cb(r); },
+        e=>{ console.error(e); showToast("동기화 오류 — 콘솔 확인"); });
+    }else cb(this._read());
+  },
+  _emit(){ if(this._cb) this._cb(this._read()); },   // 로컬 변경을 화면에 즉시 반영
+  async upsert(rec){
+    if(MODE==="shared"){
+      const id=rec.id, data={...rec}; delete data.id;
+      if(id) await db.collection(COLLECTION).doc(id).set(data);
+      else   await db.collection(COLLECTION).add(data);
+    }else{
+      const rows=this._read();
+      if(rec.id){ const i=rows.findIndex(r=>r.id===rec.id); if(i>=0)rows[i]=rec; else rows.push(rec); }
+      else{ rec.id="loc_"+Date.now()+"_"+Math.random().toString(36).slice(2,7); rows.push(rec); }
+      this._write(rows); this._emit();
+    }
+  },
+  async remove(id){
+    if(MODE==="shared") await db.collection(COLLECTION).doc(id).delete();
+    else{ this._write(this._read().filter(r=>r.id!==id)); this._emit(); }
+  },
+  _read(){ try{return JSON.parse(localStorage.getItem(LS_KEY))||[];}catch(e){return[];} },
+  _write(r){ localStorage.setItem(LS_KEY,JSON.stringify(r)); }
+};
+
+/* ============================================================
+   4. 상태 & 렌더링
+   ============================================================ */
+let ALL=[], sortKey="_created", sortDir=-1, chip="", searchTerm="";
+
+function fmtBizNo(v){ const n=(v||"").replace(/\D/g,"").slice(0,10);
+  if(n.length<4)return n; if(n.length<6)return n.slice(0,3)+"-"+n.slice(3);
+  return n.slice(0,3)+"-"+n.slice(3,5)+"-"+n.slice(5); }
+function fmtDate(v){ return v ? v.slice(2) : ""; }   // 2026-06-15 -> 26-06-15
+
+function applyFilters(){
+  let rows=ALL.slice();
+  const c=CHIPS.find(x=>x.id===chip); if(c) rows=rows.filter(c.test);
+  if(searchTerm){ const t=searchTerm.toLowerCase();
+    rows=rows.filter(r=>["companyName","bizNo","email","creditResult"].some(k=>String(r[k]||"").toLowerCase().includes(t))); }
+  rows.sort((a,b)=>String(a[sortKey]??"").localeCompare(String(b[sortKey]??""),"ko",{numeric:true})*sortDir);
+  return rows;
+}
+
+function ynButton(val,id,key){
+  const on=val==="Y";
+  const b=document.createElement("button");
+  b.className="yn-btn "+(on?"y":"n"); b.textContent=on?"Y":"N";
+  b.title="클릭하여 변경";
+  b.addEventListener("click",async()=>{ const rec=ALL.find(r=>r.id===id); if(!rec)return;
+    await Store.upsert({...rec,[key]:on?"N":"Y"}); });
+  return b;
+}
+
+function cellContent(td,f,r){
+  const v=r[f.key];
+  if(f.type==="yn"){ td.appendChild(ynButton(v,r.id,f.key)); return; }   // Y/N은 클릭 토글 유지
+  if(f.type==="date"){ td.className="date-cell"+(v?"":" empty-date"); td.textContent=v?fmtDate(v):"–"; }
+  else if(f.type==="bizno"){ td.className="mono"; td.textContent=v||""; }
+  else if(f.key==="memo"){ td.className="memo-col"; const d=document.createElement("div"); d.className="memo-ellipsis"; d.textContent=(v||"").replace(/\s*\n\s*/g," "); td.appendChild(d); }
+  else if(f.key==="email"||f.key==="companyName"||f.key==="creditResult"){ td.className="wrap"; td.textContent=v||""; }
+  else td.textContent=v||"";
+  td.classList.add("editable"); td.title="더블클릭하여 수정";
+  td.addEventListener("dblclick",()=>startInlineEdit(td,f,r));
+}
+
+function startInlineEdit(td,f,r){
+  if(td.querySelector("input,textarea")) return;
+  const multiline = !!f.multiline;
+  const input = document.createElement(multiline ? "textarea" : "input");
+  input.className = "inline-edit" + (multiline ? " inline-edit-area" : "");
+  if(!multiline) input.type = f.type==="date" ? "date" : "text";
+  input.value = r[f.key]||"";
+  if(f.type==="bizno") input.inputMode="numeric";
+  td.textContent=""; td.appendChild(input); input.focus();
+  if(!multiline && f.type!=="date" && input.value) input.select();
+  let done=false;
+  const finish=async(save)=>{
+    if(done) return; done=true;
+    if(save){
+      let val=input.value;
+      if(f.type==="bizno") val=fmtBizNo(val);
+      const rec=ALL.find(x=>x.id===r.id);
+      if(rec && val!==(rec[f.key]||"")){ await Store.upsert({...rec,[f.key]:val}); showToast("저장됨"); return; }
+    }
+    render();
+  };
+  input.addEventListener("blur",()=>finish(true));
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Enter" && !(multiline && e.shiftKey)){ e.preventDefault(); input.blur(); }   // Enter=저장, Shift+Enter=줄바꿈
+    else if(e.key==="Escape"){ done=true; render(); }
+  });
+}
+
+function render(){
+  const rows=applyFilters();
+  document.getElementById("count").textContent=`${ALL.length}건`+(rows.length!==ALL.length?` (필터 ${rows.length}건)`:"");
+  renderSummary();
+  const hr=document.getElementById("theadRow"); hr.innerHTML="";
+  const th0=document.createElement("th"); th0.textContent="#"; hr.appendChild(th0);
+  FIELDS.forEach(f=>{
+    const th=document.createElement("th"); th.className="sortable"+(sortKey===f.key?" sorted":"");
+    th.innerHTML=f.label+`<span class="arrow">${sortKey===f.key?(sortDir>0?"▲":"▼"):"↕"}</span>`;
+    th.addEventListener("click",()=>{ if(sortKey===f.key)sortDir*=-1; else{sortKey=f.key;sortDir=1;} render(); });
+    hr.appendChild(th);
+  });
+  hr.appendChild(document.createElement("th"));
+  const tb=document.getElementById("tbody"); tb.innerHTML="";
+  if(rows.length===0){
+    const tr=document.createElement("tr"),td=document.createElement("td"); td.colSpan=FIELDS.length+2;
+    td.innerHTML=`<div class="empty"><strong>${ALL.length?"조건에 맞는 고객이 없습니다":"아직 등록된 고객이 없습니다"}</strong>${ALL.length?"필터를 바꿔보세요.":"오른쪽 위 ‘+ 신규 고객’으로 첫 고객을 추가하세요."}</div>`;
+    tr.appendChild(td); tb.appendChild(tr); return;
+  }
+  rows.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.addEventListener("mousemove",e=>{ if(r.memo) showMemoTip(r.memo,e.clientX,e.clientY); else hideMemoTip(); });
+    tr.addEventListener("mouseleave",hideMemoTip);
+    const idx=document.createElement("td"); idx.className="idx"; idx.textContent=i+1; tr.appendChild(idx);
+    FIELDS.forEach(f=>{ const td=document.createElement("td"); cellContent(td,f,r); tr.appendChild(td); });
+    const act=document.createElement("td"), wrap=document.createElement("div"); wrap.className="row-actions";
+    const ed=document.createElement("button"); ed.className="icon-btn"; ed.title="편집"; ed.innerHTML="✎"; ed.addEventListener("click",()=>openDrawer(r));
+    const de=document.createElement("button"); de.className="icon-btn del"; de.title="삭제"; de.innerHTML="🗑";
+    de.addEventListener("click",async()=>{ if(confirm(`'${r.companyName||"이 고객"}'을(를) 삭제할까요?`)){ await Store.remove(r.id); showToast("삭제됨"); } });
+    wrap.appendChild(ed); wrap.appendChild(de); act.appendChild(wrap); tr.appendChild(act); tb.appendChild(tr);
+  });
+}
+
+function renderSummary(){
+  const box=document.getElementById("summary"); box.innerHTML="";
+  CHIPS.forEach(c=>{
+    const n = c.id ? ALL.filter(c.test).length : ALL.length;
+    const pill=document.createElement("button"); pill.className="summary-pill";
+    pill.setAttribute("aria-pressed", chip===c.id);
+    pill.innerHTML=`${c.label}<span class="n">${n}</span>`;
+    pill.addEventListener("click",()=>{ chip = chip===c.id ? "" : c.id; render(); });
+    box.appendChild(pill);
+  });
+  const link=document.createElement("a");
+  link.href="https://www.mobilians.co.kr/mpay/kfess/admin/sjs_mkt_inquiry.jsp";
+  link.target="_blank"; link.rel="noopener noreferrer"; link.className="summary-link";
+  link.textContent="선정산 관리자(파일럿) ↗";
+  box.appendChild(link);
+}
+
+/* ============================================================
+   5. 드로어 (추가/편집)
+   ============================================================ */
+let editing=null;
+function openDrawer(rec){
+  editing = rec ? {...rec} : {};
+  document.getElementById("drawerTitle").textContent = rec ? "고객 정보 편집" : "신규 고객 추가";
+  const body=document.getElementById("drawerBody"); body.innerHTML="";
+  const NEW_FIELDS=["bizNo","companyName","email"];
+  const list = rec ? FIELDS : FIELDS.filter(f=>NEW_FIELDS.includes(f.key));
+  if(!rec){
+    const note=document.createElement("p");
+    note.style.cssText="font-size:12.5px;color:var(--muted);margin:0 0 16px;line-height:1.6";
+    note.textContent="기본 정보만 먼저 등록하세요. 나머지 항목은 목록에서 각 칸을 더블클릭해 채울 수 있습니다.";
+    body.appendChild(note);
+  }
+  list.forEach(f=>{
+    const field=document.createElement("div"); field.className="field";
+    const lab=document.createElement("label"); lab.textContent=f.label; field.appendChild(lab);
+    if(f.type==="yn"){
+      const seg=document.createElement("div"); seg.className="seg";
+      ["N","Y"].forEach(opt=>{ const b=document.createElement("button"); b.textContent=opt;
+        const cur=editing[f.key]==="Y"?"Y":"N"; if(cur===opt)b.classList.add("active");
+        b.addEventListener("click",()=>{ editing[f.key]=opt; seg.querySelectorAll("button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); });
+        seg.appendChild(b); });
+      field.appendChild(seg); body.appendChild(field); return;
+    }
+    let inp;
+    if(f.multiline){ inp=document.createElement("textarea"); inp.rows=3; inp.value=editing[f.key]||""; }
+    else{
+      inp=document.createElement("input");
+      if(f.type==="date"){ inp.type="date"; inp.value=editing[f.key]||""; }
+      else{ inp.type="text"; inp.value=editing[f.key]||"";
+        if(f.type==="bizno"){ inp.placeholder="000-00-00000"; inp.inputMode="numeric";
+          inp.addEventListener("input",e=>{ e.target.value=fmtBizNo(e.target.value); editing[f.key]=e.target.value; }); }
+      }
+    }
+    inp.addEventListener("input",e=>editing[f.key]=e.target.value);
+    field.appendChild(inp); body.appendChild(field);
+  });
+  document.getElementById("scrim").classList.add("open");
+  const dr=document.getElementById("drawer"); dr.classList.add("open"); dr.setAttribute("aria-hidden","false");
+}
+function closeDrawer(){
+  document.getElementById("scrim").classList.remove("open");
+  const dr=document.getElementById("drawer"); dr.classList.remove("open"); dr.setAttribute("aria-hidden","true"); editing=null;
+}
+async function saveDrawer(){
+  if(!editing)return;
+  const rec={...editing};
+  if(!rec._created) rec._created=new Date().toISOString();
+  FIELDS.filter(f=>f.type==="yn").forEach(f=>{ if(rec[f.key]!=="Y")rec[f.key]="N"; });
+  await Store.upsert(rec); closeDrawer(); showToast(editing.id?"저장됨":"고객이 추가됐습니다");
+}
+
+/* ============================================================
+   6. CSV (한글 깨짐 방지 UTF-8 BOM, 날짜 yy-mm-dd)
+   ============================================================ */
+function exportCSV(){
+  const rows=applyFilters();
+  const head=["#",...FIELDS.map(f=>f.label)];
+  const esc=v=>{ const s=String(v??""); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const lines=[head.join(",")];
+  rows.forEach((r,i)=>{
+    const cells=[i+1,...FIELDS.map(f=>{ const v=r[f.key];
+      if(f.type==="yn")return v==="Y"?"Y":"N";
+      if(f.type==="date")return v?fmtDate(v):"";
+      return v??""; })];
+    lines.push(cells.map(esc).join(","));
+  });
+  const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`신규고객진행상황_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ============================================================
+   7. 배선
+   ============================================================ */
+let toastTimer;
+function showToast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),1900); }
+function showMemoTip(text,x,y){
+  if(document.querySelector("td input.inline-edit")) return;   // 편집 중에는 표시 안 함
+  const tip=document.getElementById("memoTip"); tip.textContent=text;
+  const pad=14, w=tip.offsetWidth||280, h=tip.offsetHeight||60;
+  let left=x+pad, top=y+18;
+  if(left+w>innerWidth-8) left=x-w-pad;
+  if(top+h>innerHeight-8) top=y-h-pad;
+  tip.style.left=Math.max(8,left)+"px"; tip.style.top=Math.max(8,top)+"px";
+  tip.classList.add("show");
+}
+function hideMemoTip(){ document.getElementById("memoTip").classList.remove("show"); }
+document.getElementById("addBtn").addEventListener("click",()=>openDrawer(null));
+document.getElementById("csvBtn").addEventListener("click",exportCSV);
+document.getElementById("closeDrawer").addEventListener("click",closeDrawer);
+document.getElementById("cancelBtn").addEventListener("click",closeDrawer);
+document.getElementById("saveBtn").addEventListener("click",saveDrawer);
+document.getElementById("scrim").addEventListener("click",closeDrawer);
+document.getElementById("search").addEventListener("input",e=>{ searchTerm=e.target.value.trim(); render(); });
+document.getElementById("clearBtn").addEventListener("click",()=>{ chip=""; searchTerm=""; document.getElementById("search").value=""; render(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeDrawer(); });
+
+/* ============================================================
+   8. 시작
+   ============================================================ */
+function setMode(){
+  const badge=document.getElementById("modeBadge"), txt=document.getElementById("modeText");
+  if(MODE==="shared"){ badge.className="mode-badge mode-shared"; txt.textContent="팀 공유 · 실시간 동기화"; document.getElementById("setupHint").style.display="none"; }
+  else{ badge.className="mode-badge mode-local"; txt.textContent="로컬 저장 · 이 브라우저만"; document.getElementById("setupHint").style.display="block"; }
+}
+Store.init(); setMode();
+Store.subscribe(rows=>{ ALL=rows; render(); });
+</script>
+</body>
+</html>
