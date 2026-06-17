@@ -67,15 +67,15 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 .table-scroll{margin:8px 24px 80px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); overflow:auto; max-height:calc(100dvh - 210px);}
 table{border-collapse:separate; border-spacing:0; width:max-content; min-width:100%}
-thead th{position:sticky; top:0; z-index:20; background:#FBFCFD; text-align:left; font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.01em; white-space:nowrap; padding:11px 13px; border-bottom:1px solid var(--line-strong);}
+thead th{position:sticky; top:0; z-index:20; background:#FBFCFD; text-align:center; font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.01em; white-space:nowrap; padding:11px 13px; border-bottom:1px solid var(--line-strong);}
 thead th.sortable{cursor:pointer; user-select:none}
 thead th.sortable:hover{color:var(--ink)}
 thead th .arrow{opacity:.4; font-size:10px; margin-left:3px}
 thead th.sorted .arrow{opacity:1; color:var(--accent)}
-tbody td{padding:8px 13px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; font-variant-numeric:tabular-nums;}
+tbody td{padding:8px 13px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap; font-variant-numeric:tabular-nums; text-align:center;}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:#F8FAFC}
-td.idx{color:var(--muted); font-weight:600; text-align:right; width:48px}
+td.idx{color:var(--muted); font-weight:600; text-align:center; width:48px}
 td.wrap{white-space:normal; max-width:220px; min-width:130px}
 td.date-cell{color:var(--ink)}
 td.date-cell.empty-date{color:#C2C8D0}
@@ -108,7 +108,7 @@ td textarea.inline-edit{min-width:200px; min-height:64px; resize:vertical; line-
 .yn-btn.n{background:#F0F2F5; color:#A4ACB7}
 .yn-btn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
 
-.row-actions{display:flex; gap:4px}
+.row-actions{display:flex; gap:4px; justify-content:center}
 .icon-btn{border:1px solid var(--line); background:var(--surface); border-radius:7px; width:30px; height:30px; cursor:pointer; color:var(--muted); display:inline-flex; align-items:center; justify-content:center; transition:.12s;}
 .icon-btn:hover{color:var(--ink); border-color:var(--line-strong); background:#F2F4F8}
 .icon-btn.del:hover{color:var(--danger); border-color:var(--danger); background:var(--danger-soft)}
@@ -305,9 +305,7 @@ const Store={
    ============================================================ */
 let ALL=[], sortKey="_created", sortDir=-1, chip="", searchTerm="";
 
-function fmtBizNo(v){ const n=(v||"").replace(/\D/g,"").slice(0,10);
-  if(n.length<4)return n; if(n.length<6)return n.slice(0,3)+"-"+n.slice(3);
-  return n.slice(0,3)+"-"+n.slice(3,5)+"-"+n.slice(5); }
+function fmtBizNo(v){ return (v||"").replace(/\D/g,"").slice(0,10); }   // 하이픈 없이 숫자만
 function fmtDate(v){ return v ? v.slice(2) : ""; }   // 2026-06-15 -> 26-06-15
 
 function applyFilters(){
@@ -333,7 +331,7 @@ function cellContent(td,f,r){
   const v=r[f.key];
   if(f.type==="yn"){ td.appendChild(ynButton(v,r.id,f.key)); return; }   // Y/N은 클릭 토글 유지
   if(f.type==="date"){ td.className="date-cell"+(v?"":" empty-date"); td.textContent=v?fmtDate(v):"–"; }
-  else if(f.type==="bizno"){ td.className="mono"; td.textContent=v||""; }
+  else if(f.type==="bizno"){ td.className="mono"; td.textContent=(v||"").replace(/\D/g,""); }
   else if(f.key==="memo"){ td.className="memo-col"; const d=document.createElement("div"); d.className="memo-ellipsis"; d.textContent=(v||"").replace(/\s*\n\s*/g," "); td.appendChild(d); }
   else if(f.key==="companyName"||f.key==="creditResult"){ td.className="wrap"; td.textContent=v||""; }
   else td.textContent=v||"";
@@ -470,7 +468,7 @@ function openDrawer(rec){
       inp=document.createElement("input");
       if(f.type==="date"){ inp.type="date"; inp.value=editing[f.key]||""; }
       else{ inp.type="text"; inp.value=editing[f.key]||"";
-        if(f.type==="bizno"){ inp.placeholder="000-00-00000"; inp.inputMode="numeric";
+        if(f.type==="bizno"){ inp.placeholder="숫자만 입력"; inp.inputMode="numeric";
           inp.addEventListener("input",e=>{ e.target.value=fmtBizNo(e.target.value); editing[f.key]=e.target.value; }); }
       }
     }
@@ -503,6 +501,7 @@ function exportCSV(){
   rows.forEach((r,i)=>{
     const cells=[i+1,...FIELDS.map(f=>{ const v=r[f.key];
       if(f.type==="yn")return v==="Y"?"Y":"N";
+      if(f.type==="bizno")return (v||"").replace(/\D/g,"");
       if(f.type==="date")return v?fmtDate(v):"";
       return v??""; })];
     lines.push(cells.map(esc).join(","));
