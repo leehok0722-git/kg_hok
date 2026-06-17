@@ -186,7 +186,7 @@ td textarea.inline-edit{min-width:200px; min-height:64px; resize:vertical; line-
 <div class="toolbar">
   <div class="search">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <input id="search" type="search" placeholder="상호명, 사업자번호, 이메일, 신용 결과 검색">
+    <input id="search" type="search" placeholder="상호명, 사업자번호, 신용 결과 검색">
   </div>
   <button class="link-clear" id="clearBtn">필터 초기화</button>
 </div>
@@ -235,7 +235,6 @@ const LS_KEY = "kg_hok_customers";
 const FIELDS = [
   {key:"bizNo",            label:"사업자등록번호",       type:"bizno"},
   {key:"companyName",      label:"상호명",              type:"text"},
-  {key:"email",            label:"이메일",              type:"text"},
   {key:"applyDate",        label:"신청일",              type:"date"},
   {key:"creditResult",     label:"기업 신용 결과",       type:"text"},
   {key:"mail2Date",        label:"2차 신청 메일 발송일",  type:"date"},
@@ -248,7 +247,7 @@ const FIELDS = [
   {key:"contractDoneDate", label:"계약 완료일",          type:"date"},
   {key:"virtualAccount",   label:"가상 계좌 부여",       type:"yn"},
   {key:"extraAcctDate",    label:"추가 계정 생성일",      type:"date"},
-  {key:"memo",             label:"메모",               type:"text", multiline:true}
+  {key:"memo",             label:"메모",               type:"text", multiline:true, hideInTable:true}
 ];
 
 /* 진행 상황 요약/필터 칩 */
@@ -315,7 +314,7 @@ function applyFilters(){
   let rows=ALL.slice();
   const c=CHIPS.find(x=>x.id===chip); if(c) rows=rows.filter(c.test);
   if(searchTerm){ const t=searchTerm.toLowerCase();
-    rows=rows.filter(r=>["companyName","bizNo","email","creditResult"].some(k=>String(r[k]||"").toLowerCase().includes(t))); }
+    rows=rows.filter(r=>["companyName","bizNo","creditResult"].some(k=>String(r[k]||"").toLowerCase().includes(t))); }
   rows.sort((a,b)=>String(a[sortKey]??"").localeCompare(String(b[sortKey]??""),"ko",{numeric:true})*sortDir);
   return rows;
 }
@@ -336,7 +335,7 @@ function cellContent(td,f,r){
   if(f.type==="date"){ td.className="date-cell"+(v?"":" empty-date"); td.textContent=v?fmtDate(v):"–"; }
   else if(f.type==="bizno"){ td.className="mono"; td.textContent=v||""; }
   else if(f.key==="memo"){ td.className="memo-col"; const d=document.createElement("div"); d.className="memo-ellipsis"; d.textContent=(v||"").replace(/\s*\n\s*/g," "); td.appendChild(d); }
-  else if(f.key==="email"||f.key==="companyName"||f.key==="creditResult"){ td.className="wrap"; td.textContent=v||""; }
+  else if(f.key==="companyName"||f.key==="creditResult"){ td.className="wrap"; td.textContent=v||""; }
   else td.textContent=v||"";
   td.classList.add("editable"); td.title="더블클릭하여 수정";
   td.addEventListener("dblclick",()=>startInlineEdit(td,f,r));
@@ -377,6 +376,7 @@ function render(){
   const hr=document.getElementById("theadRow"); hr.innerHTML="";
   const th0=document.createElement("th"); th0.textContent="#"; th0.className="fz fz-idx"; hr.appendChild(th0);
   FIELDS.forEach(f=>{
+    if(f.hideInTable) return;
     const th=document.createElement("th"); th.className="sortable"+(sortKey===f.key?" sorted":"");
     if(f.key==="bizNo") th.className+=" fz fz-biz";
     if(f.key==="companyName") th.className+=" fz fz-name";
@@ -398,6 +398,7 @@ function render(){
     tr.addEventListener("mouseleave",hideMemoTip);
     const idx=document.createElement("td"); idx.className="idx fz fz-idx"; idx.textContent=i+1; tr.appendChild(idx);
     FIELDS.forEach(f=>{
+      if(f.hideInTable) return;
       const td=document.createElement("td"); cellContent(td,f,r);
       if(f.key==="bizNo") td.classList.add("fz","fz-biz");
       if(f.key==="companyName") td.classList.add("fz","fz-name");
@@ -444,7 +445,7 @@ function openDrawer(rec){
   editing = rec ? {...rec} : {};
   document.getElementById("drawerTitle").textContent = rec ? "고객 정보 편집" : "신규 고객 추가";
   const body=document.getElementById("drawerBody"); body.innerHTML="";
-  const NEW_FIELDS=["bizNo","companyName","email"];
+  const NEW_FIELDS=["bizNo","companyName"];
   const list = rec ? FIELDS : FIELDS.filter(f=>NEW_FIELDS.includes(f.key));
   if(!rec){
     const note=document.createElement("p");
@@ -554,7 +555,7 @@ async function importFile(file){
   });
 
   if(matchedCols.size===0){
-    alert("엑셀의 칼럼명이 이 페이지의 칼럼명과 일치하지 않습니다.\n첫 행(머리글)을 페이지 칼럼명과 똑같이 맞춰주세요.\n예: 사업자등록번호, 상호명, 이메일, 신청일 …");
+    alert("엑셀의 칼럼명이 이 페이지의 칼럼명과 일치하지 않습니다.\n첫 행(머리글)을 페이지 칼럼명과 똑같이 맞춰주세요.\n예: 사업자등록번호, 상호명, 신청일 …");
     return;
   }
   if(!records.length){ alert("가져올 유효한 행이 없습니다."); return; }
