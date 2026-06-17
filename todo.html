@@ -110,6 +110,7 @@ body {
 .modal .btn-primary, .task-page .btn-primary, .add-form .btn-primary {
   background: var(--accent); color: #fff; border-color: transparent;
 }
+.modal .btn-primary:hover { background: var(--accent); opacity: .87; }
 .modal .btn-danger { color: var(--red); background: var(--surface); border-color: var(--border-s); }
 .modal .btn-danger:hover { background: var(--red-l); border-color: transparent; }
 
@@ -773,6 +774,28 @@ body {
 }
 .logout-btn:hover { background: rgba(255,255,255,.2); }
 
+/* ─ Group filter bar (task & list tabs) ─ */
+.group-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 0 4px;
+}
+.gf-chip {
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  border: 1px solid var(--border-s);
+  background: var(--surface);
+  cursor: pointer;
+  color: var(--ts);
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: background .1s, border-color .1s;
+  white-space: nowrap;
+}
+.gf-chip:hover { background: var(--surface2); }
+.gf-chip.active { background: var(--accent); color: #fff; border-color: transparent; }
+
 /* ─ Editable cells ─ */
 .list-table td.editable:hover { background: var(--accent-l); cursor: cell; }
 .cell-edit-input {
@@ -924,6 +947,7 @@ body {
         </div>
       </div>
       <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      <div class="group-filter-bar" id="task-group-filter"></div>
     </div>
 
     <div class="list-table-wrap">
@@ -953,6 +977,7 @@ body {
       <div class="list-title">전체 목록</div>
       <div class="list-meta" id="list-meta"></div>
     </div>
+    <div class="group-filter-bar" id="list-group-filter"></div>
     <div class="list-table-wrap">
       <table class="list-table">
         <thead>
@@ -1175,6 +1200,36 @@ function todayKey(){ const n=new Date(); return dateKey(n.getFullYear(),n.getMon
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ─ Tabs ─
+// ─ 그룹 필터 상태 ─
+let taskGroupFilter='all';
+let listGroupFilter='all';
+
+function renderGroupFilter(containerId, activeGid, onSelect){
+  const bar=document.getElementById(containerId);
+  if(!bar) return;
+  bar.innerHTML='';
+  if(!DB.groups.length) return;
+  const chips=[{id:'all',name:'전체'},...[...DB.groups].sort((a,b)=>a.name.localeCompare(b.name,'ko'))];
+  chips.forEach(g=>{
+    const btn=document.createElement('button');
+    btn.className='gf-chip'+(activeGid===g.id?' active':'');
+    if(g.id!=='all'&&g.color) btn.innerHTML=`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${g.color};margin-right:4px;vertical-align:middle"></span>${esc(g.name)}`;
+    else btn.textContent=g.name;
+    btn.onclick=()=>onSelect(g.id);
+    bar.appendChild(btn);
+  });
+}
+
+function switchTaskGroupFilter(gid){
+  taskGroupFilter=gid;
+  renderTaskTable();
+}
+
+function switchListGroupFilter(gid){
+  listGroupFilter=gid;
+  renderAllTasks();
+}
+
 function switchTab(tab){
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -1225,8 +1280,9 @@ function saveNewTask(){
 
 // ─ 할 일 목록 탭 테이블 렌더링 ─
 function renderTaskTable(){
-  const allTasks=tasksForCell(selDate);
-  const routines=routinesForDate(selDate);
+  renderGroupFilter('task-group-filter', taskGroupFilter, switchTaskGroupFilter);
+  const allTasks=tasksForCell(selDate).filter(t=>taskGroupFilter==='all'||t.groupId===taskGroupFilter);
+  const routines=routinesForDate(selDate).filter(r=>taskGroupFilter==='all'||r.groupId===taskGroupFilter);
   const selDone=DB.routineDone[selDate]||{};
 
   const [y,m,d]=selDate.split('-').map(Number);
@@ -1449,7 +1505,7 @@ function getAllItems(){
         kind:'task', kindLabel:'일반',
         id:t.id, storeKey:date,
         text:t.text,
-        group:grp?grp.name:'', groupColor:grp?grp.color:null,
+        group:grp?grp.name:'', groupId:t.groupId||'', groupColor:grp?grp.color:null,
         startDate:t.startDate||date, endDate:t.endDate||'',
         done:t.done, priority:t.priority,
         description:t.description||''
@@ -1468,7 +1524,7 @@ function getAllItems(){
       kind:'routine', kindLabel:'루틴',
       id:r.id, storeKey:null,
       text:r.text,
-      group:grp?grp.name:'', groupColor:grp?grp.color:null,
+      group:grp?grp.name:'', groupId:r.groupId||'', groupColor:grp?grp.color:null,
       startDate:rSub, endDate:'-',
       done:!!todayDone[r.id], priority:r.priority,
       description:''
@@ -1489,7 +1545,9 @@ function getAllItems(){
 }
 
 function renderAllTasks(){
-  const items=getAllItems();
+  renderGroupFilter('list-group-filter', listGroupFilter, switchListGroupFilter);
+  const allItems=getAllItems();
+  const items=listGroupFilter==='all'?allItems:allItems.filter(i=>i.groupId===listGroupFilter);
   const doneCnt=items.filter(i=>i.done).length;
   document.getElementById('list-meta').textContent=`전체 ${items.length}건 · 완료 ${doneCnt}건`;
 
@@ -1785,7 +1843,6 @@ function renderSummary(){
 // ─ Task Tab ─
 function selectDate(key){
   selDate=key;
-  // sync calendar month if needed
   const [y,m]=key.split('-').map(Number);
   viewYear=y; viewMonth=m-1;
   renderCalendar();
@@ -1797,19 +1854,19 @@ function pickDate(val){
   selDate=val;
   const [y,m]=val.split('-').map(Number);
   viewYear=y; viewMonth=m-1;
-  renderTasks(); renderCalendar();
+  renderTaskTable(); renderCalendar();
 }
 
 function shiftDate(dir){
   const d=new Date(selDate); d.setDate(d.getDate()+dir);
   selDate=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
-  renderTasks();
+  renderTaskTable();
 }
 
 function goToday(){
   selDate=todayKey();
   const d=new Date(); viewYear=d.getFullYear(); viewMonth=d.getMonth();
-  renderTasks(); renderCalendar();
+  renderTaskTable(); renderCalendar();
 }
 
 function renderTasks(){
