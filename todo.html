@@ -866,6 +866,7 @@ body {
     <button class="btn" onclick="openModal('modal-group')">🗂 그룹</button>
     <button class="btn" onclick="openModal('modal-routine')">🔁 루틴</button>
     <button class="btn" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);font-weight:600" onclick="openAddTaskModal()">+ 할 일 추가</button>
+    <button class="btn" id="admin-editors-btn" style="display:none" onclick="openEditorsModal()">👤 편집자</button>
     <div class="sync-info" id="sync-info"><span class="sync-dot offline" id="sync-dot"></span><span id="sync-text">연결 중...</span></div>
     <div class="user-info" id="user-info" style="display:none">
       <img class="user-avatar" id="user-avatar" src="" alt="">
@@ -995,6 +996,28 @@ body {
         <tbody id="list-body"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- ─ Modal: 편집자 관리 (관리자) ─ -->
+<div class="modal-overlay" id="modal-editors" onclick="overlayClick(event,'modal-editors')">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">편집자 관리</div>
+      <button class="modal-close" onclick="closeModal('modal-editors')">×</button>
+    </div>
+    <p style="font-size:12.5px;color:var(--tm);margin-bottom:16px;line-height:1.6">
+      편집 권한을 줄 Google 계정 이메일을 추가하세요. 등록된 계정만 수정할 수 있고,
+      나머지는 읽기 전용입니다. <strong>관리자는 항상 편집 가능</strong>합니다.
+    </p>
+    <div class="form-row">
+      <label class="form-label">이메일 추가</label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="editor-email" placeholder="example@gmail.com" style="flex:1" onkeydown="if(event.key==='Enter')addEditor()">
+        <button class="btn btn-primary" onclick="addEditor()" style="flex-shrink:0">추가</button>
+      </div>
+    </div>
+    <div class="modal-list" id="editors-list"></div>
   </div>
 </div>
 
@@ -1129,19 +1152,36 @@ firebase.initializeApp(firebaseConfig);
 const fbDb = firebase.database();
 const fbAuth = firebase.auth();
 
+// ─ 권한 설정 ─
+const ADMIN_EMAIL = "leehok0722@gmail.com";  // 관리자 (편집자 목록 관리 가능)
+let editorList = [];      // Firebase에서 불러온 편집자 이메일 목록
+let canEdit = false;      // 현재 사용자의 편집 권한
+let isAdmin = false;      // 현재 사용자가 관리자인지
+let currentEmail = "";    // 현재 로그인 이메일
+
 // ─ 동기화 상태 표시 ─
 function setSyncStatus(status){
   const dot=document.getElementById('sync-dot');
   const txt=document.getElementById('sync-text');
   if(!dot||!txt) return;
+  if(status==='readonly'){
+    dot.className='sync-dot'; dot.style.background='var(--blue)';
+    txt.textContent='읽기 전용'; return;
+  }
+  dot.style.background='';
   dot.className='sync-dot'+(status==='online'?'':status==='syncing'?' syncing':' offline');
   txt.textContent=status==='online'?'동기화됨':status==='syncing'?'저장 중...':'연결 중...';
 }
 
-// ─ 저장 (Firebase + localStorage 백업) ─
+// ─ 저장 (편집 권한 있을 때만 Firebase 저장) ─
 function save(){
-  setSyncStatus('syncing');
   localStorage.setItem(SK, JSON.stringify(DB));
+  if(!canEdit){
+    showToast('읽기 전용 계정입니다 (수정 권한 없음)');
+    startSync(); // 화면을 서버 데이터로 되돌림
+    return;
+  }
+  setSyncStatus('syncing');
   fbDb.ref('todoData').set(DB)
     .then(()=>setSyncStatus('online'))
     .catch(e=>{ console.error(e); setSyncStatus('offline'); });
@@ -1157,7 +1197,7 @@ function startSync(){
   fbDb.ref('todoData').on('value', snapshot=>{
     const data=snapshot.val();
     if(data) DB={tasks:{},groups:[],routines:[],routineDone:{},...data};
-    setSyncStatus('online');
+    setSyncStatus(canEdit?'online':'readonly');
     renderCalendar(); renderSummary(); renderTaskTable(); syncGroupSelects();
     if(document.getElementById('tab-btn-list')?.classList.contains('active')) renderAllTasks();
   }, err=>{
@@ -1174,6 +1214,54 @@ function logout(){
   if(confirm('로그아웃 하시겠어요?')) fbAuth.signOut();
 }
 
+// ─ 권한에 따른 UI 갱신 ─
+function updatePermissionUI(user){
+  const nameEl=document.getElementById('user-name');
+  if(nameEl){
+    let suffix='';
+    if(isAdmin) suffix=' (관리자)';
+    else if(!canEdit) suffix=' (읽기 전용)';
+    nameEl.textContent=(user.displayName||user.email)+suffix;
+  }
+  setSyncStatus(canEdit?'online':'readonly');
+}
+
+// ─ 편집자 관리 모달 (관리자 전용) ─
+function openEditorsModal(){
+  if(!isAdmin){ showToast('관리자만 접근할 수 있습니다'); return; }
+  renderEditorsList();
+  openModal('modal-editors');
+}
+function renderEditorsList(){
+  const list=document.getElementById('editors-list');
+  if(!list) return;
+  if(!editorList.length){
+    list.innerHTML='<div style="font-size:12px;color:var(--tm);margin-top:8px">등록된 편집자가 없습니다. 관리자는 항상 편집 가능합니다.</div>';
+    return;
+  }
+  list.innerHTML='<div style="font-size:11px;color:var(--tm);font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px">편집 권한 계정</div>';
+  editorList.forEach(email=>{
+    const el=document.createElement('div'); el.className='modal-list-item';
+    el.innerHTML='<div style="flex:1;font-size:13px">'+esc(email)+'</div><button class="btn btn-sm btn-danger" onclick="removeEditor(\''+esc(email)+'\')">삭제</button>';
+    list.appendChild(el);
+  });
+}
+function addEditor(){
+  if(!isAdmin){ showToast('관리자만 가능합니다'); return; }
+  const inp=document.getElementById('editor-email');
+  const email=(inp.value||'').trim().toLowerCase();
+  if(!email||!email.includes('@')){ showToast('올바른 이메일을 입력하세요'); return; }
+  if(editorList.includes(email)){ showToast('이미 등록된 계정입니다'); return; }
+  const newList=[...editorList,email];
+  fbDb.ref('editors').set(newList).then(()=>{ inp.value=''; showToast('편집자가 추가됐습니다'); });
+}
+function removeEditor(email){
+  if(!isAdmin){ showToast('관리자만 가능합니다'); return; }
+  if(!confirm(email+' 계정의 편집 권한을 삭제할까요?')) return;
+  const newList=editorList.filter(e=>e!==email);
+  fbDb.ref('editors').set(newList).then(()=>showToast('삭제됐습니다'));
+}
+
 // ─ 인증 상태 감지 ─
 fbAuth.onAuthStateChanged(user=>{
   const overlay=document.getElementById('login-overlay');
@@ -1183,10 +1271,21 @@ fbAuth.onAuthStateChanged(user=>{
     overlay.style.display='none';
     userInfo.style.display='flex';
     document.getElementById('user-avatar').src=user.photoURL||'';
-    document.getElementById('user-name').textContent=user.displayName||user.email;
-    load(); // 로컬 백업 먼저 로드
-    init(); // 화면 초기화
-    startSync(); // Firebase 실시간 연결
+    currentEmail=(user.email||'').toLowerCase();
+    isAdmin=(currentEmail===ADMIN_EMAIL.toLowerCase());
+
+    // 편집자 목록을 Firebase에서 실시간 구독
+    fbDb.ref('editors').on('value', snap=>{
+      editorList=(snap.val()||[]).map(e=>String(e).toLowerCase());
+      // 관리자는 항상 편집 가능
+      canEdit = isAdmin || editorList.includes(currentEmail);
+      updatePermissionUI(user);
+      // 관리자 버튼 표시
+      const adminBtn=document.getElementById('admin-editors-btn');
+      if(adminBtn) adminBtn.style.display=isAdmin?'inline-flex':'none';
+    });
+
+    load(); init(); startSync();
   } else {
     // 로그아웃
     overlay.style.display='flex';
@@ -1313,8 +1412,19 @@ function renderTaskTable(){
 
   const typeLabel={daily:'매일(월~금)',weekday:'특정 요일',monthly:'특정 날짜'};
 
-  // 루틴 먼저
-  routines.forEach(r=>{
+  // 그룹명(ㄱㄴㄷ) → 종료일(오름차순, 없으면 뒤) 정렬
+  const grpName=(gid)=>{ const g=DB.groups.find(x=>x.id===gid); return g?g.name:'\uFFFF'; };
+  const byGroupThenEnd=(a,b)=>{
+    const gc=grpName(a.groupId).localeCompare(grpName(b.groupId),'ko');
+    if(gc!==0) return gc;
+    const ae=a.endDate||'\uFFFF', be=b.endDate||'\uFFFF';
+    return ae.localeCompare(be);
+  };
+
+  // 루틴: 그룹 → (루틴은 종료일 없으니 그룹 정렬만) 미완료 먼저
+  const rPending=routines.filter(r=>!selDone[r.id]).sort(byGroupThenEnd);
+  const rDoneArr=routines.filter(r=>selDone[r.id]).sort(byGroupThenEnd);
+  [...rPending,...rDoneArr].forEach(r=>{
     const isDone=!!selDone[r.id];
     const grp=DB.groups.find(g=>g.id===r.groupId);
     let rSub=typeLabel[r.type]||r.type;
@@ -1323,20 +1433,14 @@ function renderTaskTable(){
     tbody.appendChild(makeTableRow({kind:'routine',id:r.id,text:r.text,group:grp?grp.name:'',groupColor:grp?grp.color:null,startDate:rSub,endDate:'-',done:isDone,priority:r.priority,description:''},'task'));
   });
 
-  // 진행중
-  sortTasks(allTasks.filter(t=>!t.done)).forEach(t=>{
+  // 일반: 미완료(그룹→종료일) 먼저, 완료는 뒤
+  const tPending=allTasks.filter(t=>!t.done).sort(byGroupThenEnd);
+  const tDoneArr=allTasks.filter(t=>t.done).sort(byGroupThenEnd);
+  [...tPending,...tDoneArr].forEach(t=>{
     const grp=DB.groups.find(g=>g.id===t.groupId);
     const sf=t.startDate&&t.startDate.includes('-')?t.startDate.slice(5).replace('-','/'):t.startDate||'-';
     const ef=t.endDate?t.endDate.slice(5).replace('-','/'):'';
-    tbody.appendChild(makeTableRow({kind:'task',id:t.id,text:t.text,group:grp?grp.name:'',groupColor:grp?grp.color:null,startDate:sf,endDate:ef,done:false,priority:t.priority,description:t.description||''},'task'));
-  });
-
-  // 완료
-  sortTasks(allTasks.filter(t=>t.done)).forEach(t=>{
-    const grp=DB.groups.find(g=>g.id===t.groupId);
-    const sf=t.startDate&&t.startDate.includes('-')?t.startDate.slice(5).replace('-','/'):t.startDate||'-';
-    const ef=t.endDate?t.endDate.slice(5).replace('-','/'):'';
-    tbody.appendChild(makeTableRow({kind:'task',id:t.id,text:t.text,group:grp?grp.name:'',groupColor:grp?grp.color:null,startDate:sf,endDate:ef,done:true,priority:t.priority,description:t.description||''},'task'));
+    tbody.appendChild(makeTableRow({kind:'task',id:t.id,text:t.text,group:grp?grp.name:'',groupColor:grp?grp.color:null,startDate:sf,endDate:ef,done:t.done,priority:t.priority,description:t.description||''},'task'));
   });
 }
 
