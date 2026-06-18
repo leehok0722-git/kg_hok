@@ -296,12 +296,12 @@ const FIELDS = [
 
 /* 진행 상황 요약/필터 칩 */
 const CHIPS = [
-  {id:"",    label:"전체",          test:()=>true},
-  {id:"s1",  label:"신규 신청",      test:r=>!!r.applyDate},
-  {id:"s2",  label:"2차 신청",       test:r=>!!r.applyDate && !!r.apply2Date},
-  {id:"s3",  label:"계약서 발송",     test:r=>!!r.applyDate && !!r.apply2Date && !!r.contractSentDate},
-  {id:"s4",  label:"계약 완료",      test:r=>!!r.applyDate && !!r.apply2Date && !!r.contractSentDate && !!r.contractDoneDate},
-  {id:"s5",  label:"추가 계정 생성",  test:r=>!!r.applyDate && !!r.apply2Date && !!r.contractSentDate && !!r.contractDoneDate && !!r.extraAcctDate}
+  {id:"",    label:"1차 신청",        test:()=>true},
+  {id:"s1",  label:"2차 신청 메일 발송", test:r=>!!r.mail2Date},
+  {id:"s2",  label:"2차 신청",       test:r=>!!r.mail2Date && !!r.apply2Date},
+  {id:"s3",  label:"계약서 발송",     test:r=>!!r.mail2Date && !!r.apply2Date && !!r.contractSentDate},
+  {id:"s4",  label:"계약 완료",      test:r=>!!r.mail2Date && !!r.apply2Date && !!r.contractSentDate && !!r.contractDoneDate},
+  {id:"s5",  label:"추가 계정 생성",  test:r=>!!r.mail2Date && !!r.apply2Date && !!r.contractSentDate && !!r.contractDoneDate && !!r.extraAcctDate}
 ];
 
 /* ============================================================
