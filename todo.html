@@ -796,6 +796,24 @@ body {
 .gf-chip:hover { background: var(--surface2); }
 .gf-chip.active { background: var(--accent); color: #fff; border-color: transparent; }
 
+/* ─ Row action buttons (수정/삭제) ─ */
+.row-actions { display: flex; gap: 4px; justify-content: center; }
+.row-act-btn {
+  border: 1px solid var(--border-s);
+  background: var(--surface);
+  border-radius: 6px;
+  width: 28px; height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ts);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .1s, border-color .1s, color .1s;
+}
+.row-act-btn:hover { background: var(--surface2); }
+.row-act-btn.del:hover { color: var(--red); border-color: var(--red); }
+
 /* ─ Editable cells ─ */
 .list-table td.editable:hover { background: var(--accent-l); cursor: cell; }
 .cell-edit-input {
@@ -870,7 +888,7 @@ body {
 <!-- ─ Header ─ -->
 <header class="header">
   <div class="header-center">
-    <button class="tab-btn active" id="tab-btn-cal" onclick="switchTab('cal')">📅 달력 &amp; 요약</button>
+    <button class="tab-btn active" id="tab-btn-cal" onclick="switchTab('cal')">📅 달력</button>
     <button class="tab-btn" id="tab-btn-task" onclick="switchTab('task')">✅ 할 일 목록</button>
     <button class="tab-btn" id="tab-btn-list" onclick="switchTab('list')">📋 전체 목록</button>
   </div>
@@ -894,8 +912,6 @@ body {
 <!-- ══ TAB 1: CALENDAR ══ -->
 <div class="tab-panel active" id="panel-cal">
   <div class="cal-page">
-
-    <div class="routine-summary" id="routine-summary" style="display:none"></div>
 
     <div class="cal-sticky-hd">
       <div class="cal-nav">
@@ -931,8 +947,6 @@ body {
       <tbody id="cal-body"></tbody>
     </table>
     </div>
-
-    <div class="routine-summary" id="today-tasks" style="display:none"></div>
 
   </div>
 </div>
@@ -975,6 +989,7 @@ body {
             <th style="text-align:center">완료</th>
             <th>우선순위</th>
             <th>추가 설명</th>
+            <th style="text-align:center">관리</th>
           </tr>
         </thead>
         <tbody id="task-tbody"></tbody>
@@ -1003,6 +1018,7 @@ body {
             <th style="text-align:center">완료</th>
             <th>우선순위</th>
             <th>추가 설명</th>
+            <th style="text-align:center">관리</th>
           </tr>
         </thead>
         <tbody id="list-body"></tbody>
@@ -1483,7 +1499,7 @@ function renderTaskTable(){
   tbody.innerHTML='';
 
   if(!total){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--tm)">이 날 등록된 항목이 없습니다<br><small style="margin-top:6px;display:block">헤더의 "+ 할 일 추가" 버튼으로 추가하세요</small></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--tm)">이 날 등록된 항목이 없습니다<br><small style="margin-top:6px;display:block">헤더의 "+ 할 일 추가" 버튼으로 추가하세요</small></td></tr>`;
     return;
   }
 
@@ -1541,9 +1557,10 @@ function makeTableRow(item, tbodyContext){
     :'toggleListItem(\'routine\',\''+item.id+'\')';
 
   const editOnclick=tbodyContext==='task'?'editTaskRow(\''+item.id+'\')':'editListItem(\''+item.id+'\')';
-  const editBtn=item.kind==='task'
-    ?'<button class="task-edit-icon" onclick="'+editOnclick+'" title="수정" style="flex-shrink:0">✎</button>'
-    :'';
+  const delFn=item.kind==='task'?'deleteTask(\''+item.id+'\')':'deleteRoutine(\''+item.id+'\')';
+  const actionBtns=
+    '<button class="row-act-btn" onclick="'+editOnclick+'" title="수정">✎</button>'+
+    '<button class="row-act-btn del" onclick="'+delFn+'" title="삭제">🗑</button>';
 
   const kindClass=item.kind==='task'?'lt-kind-task':'lt-kind-routine';
   const kindLabel=item.kind==='task'?'일반':'루틴';
@@ -1560,9 +1577,10 @@ function makeTableRow(item, tbodyContext){
     '<td class="editable" '+editAttr('priority')+'><span class="prio-badge '+PRIO_CLASS[item.priority]+'">'+PRIO_LABEL[item.priority]+'</span></td>'+
     '<td class="editable" style="font-size:12px;color:var(--tm)" '+editAttr('description')+'>'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
-        '<span>'+(item.description||'-')+'</span>'+editBtn+
+        '<span>'+(item.description||'-')+'</span>'+
       '</div>'+
-    '</td>';
+    '</td>'+
+    '<td style="white-space:nowrap"><div class="row-actions">'+actionBtns+'</div></td>';
   return tr;
 }
 
@@ -1737,7 +1755,7 @@ function renderAllTasks(){
   tbody.innerHTML='';
 
   if(!items.length){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--tm)">등록된 항목이 없습니다</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--tm)">등록된 항목이 없습니다</td></tr>`;
     return;
   }
 
@@ -1761,7 +1779,7 @@ function editListItem(id){
     `<option value="${g.id}"${t.groupId===g.id?' selected':''}>${esc(g.name)}</option>`
   ).join('');
 
-  tr.innerHTML=`<td colspan="8" style="padding:12px 14px">
+  tr.innerHTML=`<td colspan="9" style="padding:12px 14px">
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
       <input class="task-edit-input" id="le-text-${id}" value="${esc(t.text)}" style="min-width:200px;flex:1" onkeydown="if(event.key==='Escape')renderAllTasks()">
       <select class="mini-select" id="le-prio-${id}">${prioOpts}</select>
@@ -1804,6 +1822,68 @@ function saveListItem(id, oldKey){
     DB.tasks[effectiveStart].push(t);
   }
   save(); renderAllTasks(); renderCalendar();
+  showToast('수정되었습니다');
+}
+
+// ─ 할 일 목록 탭: 행 수정 ─
+function editTaskRow(id){
+  const found=findTask(id);
+  if(!found) return;
+  const {task:t, key:oldKey}=found;
+  const tr=document.getElementById('task-row-'+id);
+  if(!tr) return;
+
+  const prioOpts=['high','mid','low'].map(p=>
+    `<option value="${p}"${t.priority===p?' selected':''}>${{high:'🔴 높음',mid:'🟡 보통',low:'🔵 낮음'}[p]}</option>`
+  ).join('');
+  const sortedGrps=[...DB.groups].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+  const grpOpts='<option value="">그룹 없음</option>'+sortedGrps.map(g=>
+    `<option value="${g.id}"${t.groupId===g.id?' selected':''}>${esc(g.name)}</option>`
+  ).join('');
+
+  tr.innerHTML=`<td colspan="9" style="padding:12px 14px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
+      <input class="task-edit-input" id="te-text-${id}" value="${esc(t.text)}" style="min-width:200px;flex:1" onkeydown="if(event.key==='Escape')renderTaskTable()">
+      <select class="mini-select" id="te-prio-${id}">${prioOpts}</select>
+      <select class="mini-select" id="te-grp-${id}">${grpOpts}</select>
+      <span style="font-size:11px;color:var(--tm);align-self:center">기간</span>
+      <input type="date" class="mini-date" id="te-sd-${id}" value="${t.startDate||''}">
+      <span style="font-size:11px;color:var(--tm);align-self:center">~</span>
+      <input type="date" class="mini-date" id="te-ed-${id}" value="${t.endDate||''}">
+    </div>
+    <textarea class="add-desc" id="te-desc-${id}" rows="2" placeholder="추가 설명 (선택)" style="margin-top:8px">${esc(t.description||'')}</textarea>
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
+      <button class="task-edit-btn save" onclick="saveTaskRow('${id}')">저장</button>
+      <button class="task-edit-btn cancel" onclick="renderTaskTable()">취소</button>
+    </div>
+  </td>`;
+  document.getElementById('te-text-'+id)?.focus();
+}
+
+function saveTaskRow(id){
+  const text=document.getElementById('te-text-'+id)?.value.trim();
+  if(!text){ showToast('내용을 입력하세요'); return; }
+  const newPrio=document.getElementById('te-prio-'+id)?.value;
+  const newGrp=document.getElementById('te-grp-'+id)?.value||'';
+  const newStart=document.getElementById('te-sd-'+id)?.value||'';
+  const newEnd=document.getElementById('te-ed-'+id)?.value||'';
+  const newDesc=document.getElementById('te-desc-'+id)?.value.trim()||'';
+  if(newEnd&&newStart&&newEnd<newStart){ showToast('종료일이 시작일보다 빠릅니다'); return; }
+
+  const found=findTask(id);
+  if(!found){ showToast('할 일을 찾을 수 없습니다'); return; }
+  const {task:t, key:curKey}=found;
+  const effectiveStart=newStart||curKey;
+
+  t.text=text; t.priority=newPrio; t.groupId=newGrp;
+  t.startDate=effectiveStart; t.endDate=newEnd; t.description=newDesc;
+
+  if(effectiveStart!==curKey){
+    DB.tasks[curKey]=DB.tasks[curKey].filter(x=>x.id!==id);
+    if(!DB.tasks[effectiveStart]) DB.tasks[effectiveStart]=[];
+    DB.tasks[effectiveStart].push(t);
+  }
+  save(); renderTaskTable(); renderCalendar();
   showToast('수정되었습니다');
 }
 
@@ -1905,7 +1985,6 @@ function renderCalendar(){
 }
 
 function makeCell(d,key,today,ghost){
-  const tasks=tasksForCell(key);
   const [ky,km,kd]=key.split('-').map(Number);
   const wd=new Date(ky,km-1,kd).getDay();
   const td=document.createElement('td');
@@ -1916,21 +1995,23 @@ function makeCell(d,key,today,ghost){
   const numEl=document.createElement('div'); numEl.className='cell-num'; numEl.textContent=d;
   td.appendChild(numEl);
 
-  if(tasks.length){
-    const pending=sortTasks(tasks.filter(t=>!t.done));
-    const done=sortTasks(tasks.filter(t=>t.done));
+  // 달력에는 우선순위 '높음'만 표시
+  const highTasks=tasksForCell(key).filter(t=>t.priority==='high');
+  if(highTasks.length){
+    const pending=sortTasks(highTasks.filter(t=>!t.done));
+    const done=sortTasks(highTasks.filter(t=>t.done));
     const sorted=[...pending,...done];
     const pillWrap=document.createElement('div'); pillWrap.className='cell-tasks';
-    sorted.slice(0,2).forEach(t=>{
+    sorted.slice(0,3).forEach(t=>{
       const p=document.createElement('div');
       p.className='cell-task-pill '+(t.done?'pill-done':PILL_CLASS[t.priority]);
       p.textContent=t.text; p.title='더블클릭하여 수정';
       p.ondblclick=(e)=>dblClickPill(e,key,t.id);
       pillWrap.appendChild(p);
     });
-    if(tasks.length>2){
+    if(sorted.length>3){
       const m=document.createElement('div'); m.className='cell-more';
-      m.textContent=`+${tasks.length-2}개 더`; pillWrap.appendChild(m);
+      m.textContent=`+${sorted.length-3}개 더`; pillWrap.appendChild(m);
     }
     td.appendChild(pillWrap);
   }
@@ -1963,8 +2044,9 @@ function toggleSection(section){
 }
 
 function renderSummary(){
-  // ① 루틴 목록 (선택한 날짜에 해당하는 루틴만)
+  // 달력 탭에서 요약 영역 제거됨 — 요소가 없으면 아무 동작 안 함
   const rs=document.getElementById('routine-summary');
+  if(!rs) return;
   const selRoutines=routinesForDate(selDate);
   if(selRoutines.length){
     rs.style.display='block';
@@ -2051,78 +2133,7 @@ function goToday(){
   renderTaskTable(); renderCalendar();
 }
 
-function renderTasks(){
-  const allTasksForDate=tasksForCell(selDate).filter(t=>activeGroup==='all'||t.groupId===activeGroup);
-  const allTasks=allTasksForDate;
-  const routines=routinesForDate(selDate);
-  const [y,m,d]=selDate.split('-').map(Number);
-  const dateObj=new Date(y,m-1,d);
-  const dayNames=['일요일','월요일','화요일','수요일','목요일','금요일','토요일'];
-  const titleEl=document.getElementById('sel-day-title');
-  titleEl.innerHTML=`${m}월 ${d}일 ${dayNames[dateObj.getDay()]} <span style="font-size:14px;color:var(--tm)">▾</span>`;
-  document.getElementById('date-picker').value=selDate;
-
-  const rDoneMap=DB.routineDone[selDate]||{};
-  const rDone=routines.filter(r=>rDoneMap[r.id]).length;
-  const tDone=allTasks.filter(t=>t.done).length;
-  const totalItems=allTasks.length+routines.length;
-  const doneItems=tDone+rDone;
-  document.getElementById('sel-task-count').textContent=totalItems
-    ?`${doneItems} / ${totalItems} 완료  (루틴 ${rDone}/${routines.length})`
-    :'할 일이 없습니다';
-  const pct=totalItems?doneItems/totalItems*100:0;
-  document.getElementById('prog-fill').style.width=pct+'%';
-
-  // Filter bar
-  const fb=document.getElementById('filter-bar');
-  fb.innerHTML='';
-  if(DB.groups.length){
-    const all=mkFilterChip('전체','all');
-    fb.appendChild(all);
-    const sorted=[...DB.groups].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
-    sorted.forEach(g=>{
-      const cnt=(DB.tasks[selDate]||[]).filter(t=>t.groupId===g.id).length;
-      if(!cnt) return;
-      const chip=mkFilterChip(g.name,g.id,g.color);
-      fb.appendChild(chip);
-    });
-  }
-
-  // Task list
-  const list=document.getElementById('task-list');
-  list.innerHTML='';
-  if(!totalItems){
-    list.innerHTML=`<div class="empty"><div class="empty-icon">✏️</div>이 날의 할 일을 추가해 보세요!</div>`;
-    return;
-  }
-
-  // Routines
-  if(routines.length){
-    const g=document.createElement('div'); g.className='task-group';
-    g.innerHTML=`<div class="tg-label">🔁 루틴<span class="tg-badge">${rDone}/${routines.length}</span></div>`;
-    routines.forEach(r=>g.appendChild(mkRoutineEl(r,selDate)));
-    list.appendChild(g);
-  }
-
-  // Pending
-  const order={high:0,mid:1,low:2};
-  const pending=sortTasks(allTasks.filter(t=>!t.done));
-  if(pending.length){
-    const g=document.createElement('div'); g.className='task-group';
-    g.innerHTML=`<div class="tg-label">진행 중<span class="tg-badge">${pending.length}</span></div>`;
-    pending.forEach(t=>g.appendChild(mkTaskEl(t)));
-    list.appendChild(g);
-  }
-
-  // Done
-  const done=sortTasks(allTasks.filter(t=>t.done));
-  if(done.length){
-    const g=document.createElement('div'); g.className='task-group';
-    g.innerHTML=`<div class="tg-label">완료<span class="tg-badge">${done.length}</span></div>`;
-    done.forEach(t=>g.appendChild(mkTaskEl(t)));
-    list.appendChild(g);
-  }
-}
+function renderTasks(){ renderTaskTable(); }
 
 function mkFilterChip(name,gid,color){
   const chip=document.createElement('div');
