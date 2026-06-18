@@ -982,7 +982,7 @@ body {
         <thead>
           <tr>
             <th>성격</th>
-            <th>그룹</th>
+            <th style="min-width:120px">그룹</th>
             <th>할 일</th>
             <th>시작일</th>
             <th>종료일</th>
@@ -1011,7 +1011,7 @@ body {
         <thead>
           <tr>
             <th>성격</th>
-            <th>그룹</th>
+            <th style="min-width:120px">그룹</th>
             <th>할 일</th>
             <th>시작일</th>
             <th>종료일</th>
@@ -1536,10 +1536,8 @@ function makeTableRow(item, tbodyContext){
   tr.id=(tbodyContext==='task'?'task-row-':'list-row-')+item.id;
   if(item.done) tr.className='lt-done';
 
-  const gc=item.groupColor||'#5F5E5A';
-  const isHex=gc.charAt(0)==='#';
   const grpTag=item.group
-    ?'<span style="font-size:10px;padding:2px 8px;border-radius:99px;font-weight:500;white-space:nowrap;line-height:1.6;background:'+(isHex?gc+'22':gc)+';color:var(--tp)">'+esc(item.group)+'</span>'
+    ?'<span style="font-size:11px;padding:3px 10px;border-radius:99px;font-weight:500;white-space:nowrap;line-height:1.6;background:var(--surface2);color:var(--tm)">'+esc(item.group)+'</span>'
     :'<span style="color:var(--tm)">-</span>';
 
   const ea=(kind,field)=>'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"';
@@ -2054,7 +2052,7 @@ function renderSummary(){
     if(!routineCollapsed){
       const pending=selRoutines.filter(r=>!selDone[r.id]);
       const done=selRoutines.filter(r=>selDone[r.id]);
-      html+=`<table class="rs-table"><thead><tr><th>루틴</th><th>반복</th><th>우선순위</th><th>그룹</th></tr></thead><tbody>`;
+      html+=`<table class="rs-table"><thead><tr><th>루틴</th><th>반복</th><th>우선순위</th><th style="min-width:120px">그룹</th></tr></thead><tbody>`;
       [...pending,...done].forEach(r=>{
         const grp=DB.groups.find(g=>g.id===r.groupId);
         let rSub=typeLabel[r.type]||r.type;
@@ -2081,7 +2079,7 @@ function renderSummary(){
     const done=sorted.filter(t=>t.done).length;
     let html=`<div class="rs-title" onclick="toggleSection('today')"><span>오늘 할 일 (${done}/${sorted.length} 완료)</span><span class="${arrowClass2}">▼</span></div>`;
     if(!todayCollapsed){
-      html+=`<table class="rs-table"><thead><tr><th>할 일</th><th>우선순위</th><th>그룹</th><th>기간</th><th>상태</th></tr></thead><tbody>`;
+      html+=`<table class="rs-table"><thead><tr><th>할 일</th><th>우선순위</th><th style="min-width:120px">그룹</th><th>기간</th><th>상태</th></tr></thead><tbody>`;
       sorted.forEach(t=>{
         const grp=DB.groups.find(g=>g.id===t.groupId);
         let dateRange='-';
