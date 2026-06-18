@@ -1065,10 +1065,6 @@ body {
       <button class="modal-close" onclick="closeModal('modal-add-task')">×</button>
     </div>
     <div class="form-row">
-      <label class="form-label">날짜</label>
-      <input class="form-input" type="date" id="at-date">
-    </div>
-    <div class="form-row">
       <label class="form-label">할 일 *</label>
       <input class="form-input" id="at-text" placeholder="할 일을 입력하세요" onkeydown="if(event.key==='Enter')saveNewTask()">
     </div>
@@ -1434,11 +1430,9 @@ function switchTab(tab){
 
 // ─ 할 일 추가 모달 ─
 function openAddTaskModal(){
-  const now=todayKey();
-  document.getElementById('at-date').value=selDate||now;
   document.getElementById('at-text').value='';
   document.getElementById('at-prio').value='mid';
-  document.getElementById('at-start').value='';
+  document.getElementById('at-start').value=selDate||todayKey();
   document.getElementById('at-end').value='';
   document.getElementById('at-desc').value='';
   // sync group options
@@ -1452,8 +1446,7 @@ function openAddTaskModal(){
 function saveNewTask(){
   const text=document.getElementById('at-text').value.trim();
   if(!text){ showToast('할 일을 입력하세요'); return; }
-  const dateVal=document.getElementById('at-date').value||selDate||todayKey();
-  const startDate=document.getElementById('at-start').value||dateVal;
+  const startDate=document.getElementById('at-start').value||selDate||todayKey();
   const endDate=document.getElementById('at-end').value||'';
   if(endDate&&startDate&&endDate<startDate){ showToast('종료일이 시작일보다 빠릅니다'); return; }
   if(!DB.tasks[startDate]) DB.tasks[startDate]=[];
@@ -1543,9 +1536,12 @@ function makeTableRow(item, tbodyContext){
   tr.id=(tbodyContext==='task'?'task-row-':'list-row-')+item.id;
   if(item.done) tr.className='lt-done';
 
-  const grpBg=item.groupColor?item.groupColor+'22':'var(--surface2)';
+  const grpBg=item.groupColor?item.groupColor+'26':'var(--surface2)';
+  const grpStyle=item.groupColor
+    ?'background:'+grpBg+';color:'+item.groupColor+';border:1px solid '+item.groupColor+'40'
+    :'background:var(--surface2);color:var(--tm)';
   const grpTag=item.group
-    ?'<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:'+grpBg+';color:var(--tp);font-weight:500">'+esc(item.group)+'</span>'
+    ?'<span style="font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600;'+grpStyle+'">'+esc(item.group)+'</span>'
     :'<span style="color:var(--tm)">-</span>';
 
   const ea=(kind,field)=>'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"';
