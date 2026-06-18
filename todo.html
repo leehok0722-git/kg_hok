@@ -1530,14 +1530,31 @@ function renderTaskTable(){
   });
 }
 
+// 배경색 밝기에 따라 흰색/검정 글자 결정 (hex, rgb 모두 지원)
+function textOn(color){
+  let r,g,b;
+  if(color.charAt(0)==='#'){
+    const hex=color.replace('#','');
+    const h=hex.length===3?hex.split('').map(c=>c+c).join(''):hex;
+    r=parseInt(h.slice(0,2),16); g=parseInt(h.slice(2,4),16); b=parseInt(h.slice(4,6),16);
+  } else {
+    const m=color.match(/\d+/g)||[0,0,0];
+    r=+m[0]; g=+m[1]; b=+m[2];
+  }
+  // 상대 휘도 (밝으면 검정, 어두우면 흰색)
+  const lum=(0.299*r+0.587*g+0.114*b)/255;
+  return lum>0.6?'#1a1a1a':'#ffffff';
+}
+
 // ─ 공통 테이블 행 생성 (할 일 목록 + 전체 목록 공용) ─
 function makeTableRow(item, tbodyContext){
   const tr=document.createElement('tr');
   tr.id=(tbodyContext==='task'?'task-row-':'list-row-')+item.id;
   if(item.done) tr.className='lt-done';
 
+  const gc=item.groupColor||'#5F5E5A';
   const grpTag=item.group
-    ?'<span style="font-size:11px;padding:3px 10px;border-radius:99px;font-weight:500;white-space:nowrap;line-height:1.6;background:var(--surface2);color:var(--tm)">'+esc(item.group)+'</span>'
+    ?'<span style="font-size:11px;padding:3px 10px;border-radius:99px;font-weight:500;white-space:nowrap;line-height:1.6;background:'+gc+';color:'+textOn(gc)+'">'+esc(item.group)+'</span>'
     :'<span style="color:var(--tm)">-</span>';
 
   const ea=(kind,field)=>'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"';
