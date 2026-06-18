@@ -1553,8 +1553,9 @@ function makeTableRow(item, tbodyContext){
   if(item.done) tr.className='lt-done';
 
   const gc=item.groupColor||'#5F5E5A';
+  const grpBg=gc.charAt(0)==='#'?gc+'22':gc;
   const grpTag=item.group
-    ?'<span style="font-size:11px;padding:3px 10px;border-radius:99px;font-weight:500;white-space:nowrap;line-height:1.6;background:'+gc+';color:'+textOn(gc)+'">'+esc(item.group)+'</span>'
+    ?'<span style="font-size:12px;padding:3px 10px;border-radius:99px;font-weight:600;white-space:nowrap;line-height:1.6;background:'+grpBg+';color:'+gc+'">'+esc(item.group)+'</span>'
     :'<span style="color:var(--tm)">-</span>';
 
   const ea=(kind,field)=>'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"';
@@ -2004,18 +2005,23 @@ function makeCell(d,key,today,ghost){
   const numEl=document.createElement('div'); numEl.className='cell-num'; numEl.textContent=d;
   td.appendChild(numEl);
 
-  // 달력에는 우선순위 '높음'만 표시
-  const highTasks=tasksForCell(key).filter(t=>t.priority==='high');
-  if(highTasks.length){
-    const pending=sortTasks(highTasks.filter(t=>!t.done));
-    const done=sortTasks(highTasks.filter(t=>t.done));
+  // 달력에는 우선순위 '높음'만 표시 (일반 + 루틴)
+  const highTasks=tasksForCell(key).filter(t=>t.priority==='high')
+    .map(t=>({text:t.text, done:t.done, id:t.id, isRoutine:false}));
+  const selDone=DB.routineDone[key]||{};
+  const highRoutines=routinesForDate(key).filter(r=>r.priority==='high')
+    .map(r=>({text:r.text, done:!!selDone[r.id], id:r.id, isRoutine:true}));
+  const allHigh=[...highRoutines,...highTasks];
+  if(allHigh.length){
+    const pending=allHigh.filter(t=>!t.done);
+    const done=allHigh.filter(t=>t.done);
     const sorted=[...pending,...done];
     const pillWrap=document.createElement('div'); pillWrap.className='cell-tasks';
     sorted.slice(0,3).forEach(t=>{
       const p=document.createElement('div');
-      p.className='cell-task-pill '+(t.done?'pill-done':PILL_CLASS[t.priority]);
-      p.textContent=t.text; p.title='더블클릭하여 수정';
-      p.ondblclick=(e)=>dblClickPill(e,key,t.id);
+      p.className='cell-task-pill '+(t.done?'pill-done':'pill-high');
+      p.textContent=(t.isRoutine?'🔁 ':'')+t.text; p.title='더블클릭하여 수정';
+      if(!t.isRoutine) p.ondblclick=(e)=>dblClickPill(e,key,t.id);
       pillWrap.appendChild(p);
     });
     if(sorted.length>3){
