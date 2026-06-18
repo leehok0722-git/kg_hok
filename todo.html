@@ -1295,18 +1295,22 @@ function renderViewersList(){
     list.appendChild(el);
   });
 }
+// 이메일을 Firebase 키로 변환.
+// Firebase 규칙의 .replace('.', ',') 는 "첫 번째 점"만 바꾸므로 코드도 동일하게 맞춤.
+function emailKey(email){ return email.replace('.', ','); }
+
 function addEditor(){
   if(!isAdmin){ showToast('관리자만 가능합니다'); return; }
   const inp=document.getElementById('editor-email');
   const email=(inp.value||'').trim().toLowerCase();
   if(!email||!email.includes('@')){ showToast('올바른 이메일을 입력하세요'); return; }
   if(editorList.includes(email)){ showToast('이미 등록된 편집자입니다'); return; }
-  fbDb.ref('editors').set([...editorList,email]).then(()=>{ inp.value=''; showToast('편집자가 추가됐습니다'); });
+  fbDb.ref('editors/'+emailKey(email)).set(email).then(()=>{ inp.value=''; showToast('편집자가 추가됐습니다'); });
 }
 function removeEditor(email){
   if(!isAdmin){ showToast('관리자만 가능합니다'); return; }
   if(!confirm(email+' 계정의 편집 권한을 삭제할까요?')) return;
-  fbDb.ref('editors').set(editorList.filter(e=>e!==email)).then(()=>showToast('삭제됐습니다'));
+  fbDb.ref('editors/'+emailKey(email)).remove().then(()=>showToast('삭제됐습니다'));
 }
 function addViewer(){
   if(!isAdmin){ showToast('관리자만 가능합니다'); return; }
@@ -1314,12 +1318,12 @@ function addViewer(){
   const email=(inp.value||'').trim().toLowerCase();
   if(!email||!email.includes('@')){ showToast('올바른 이메일을 입력하세요'); return; }
   if(viewerList.includes(email)){ showToast('이미 등록된 뷰어입니다'); return; }
-  fbDb.ref('viewers').set([...viewerList,email]).then(()=>{ inp.value=''; showToast('뷰어가 추가됐습니다'); });
+  fbDb.ref('viewers/'+emailKey(email)).set(email).then(()=>{ inp.value=''; showToast('뷰어가 추가됐습니다'); });
 }
 function removeViewer(email){
   if(!isAdmin){ showToast('관리자만 가능합니다'); return; }
   if(!confirm(email+' 계정의 보기 권한을 삭제할까요?')) return;
-  fbDb.ref('viewers').set(viewerList.filter(e=>e!==email)).then(()=>showToast('삭제됐습니다'));
+  fbDb.ref('viewers/'+emailKey(email)).remove().then(()=>showToast('삭제됐습니다'));
 }
 
 // ─ 인증 상태 감지 ─
@@ -1334,21 +1338,27 @@ fbAuth.onAuthStateChanged(user=>{
     currentEmail=(user.email||'').toLowerCase();
     isAdmin=(currentEmail===ADMIN_EMAIL.toLowerCase());
 
-    // 편집자 + 뷰어 목록을 Firebase에서 실시간 구독
+    // 편집자 + 뷰어 목록을 Firebase에서 실시간 구독 (객체 맵 형태)
     const recompute=()=>{
       canEdit = isAdmin || editorList.includes(currentEmail);
-      // 편집자는 자동으로 보기 가능. 뷰어 목록에 있어도 보기 가능.
       canView = isAdmin || canEdit || viewerList.includes(currentEmail);
       const adminBtn=document.getElementById('admin-editors-btn');
       if(adminBtn) adminBtn.style.display=isAdmin?'inline-flex':'none';
       applyAccess(user);
     };
     fbDb.ref('editors').on('value', snap=>{
-      editorList=(snap.val()||[]).map(e=>String(e).toLowerCase());
+      const val=snap.val()||{};
+      // 배열/객체 모두 호환
+      editorList=Array.isArray(val)
+        ? val.map(e=>String(e).toLowerCase())
+        : Object.values(val).map(e=>String(e).toLowerCase());
       recompute();
     });
     fbDb.ref('viewers').on('value', snap=>{
-      viewerList=(snap.val()||[]).map(e=>String(e).toLowerCase());
+      const val=snap.val()||{};
+      viewerList=Array.isArray(val)
+        ? val.map(e=>String(e).toLowerCase())
+        : Object.values(val).map(e=>String(e).toLowerCase());
       recompute();
     });
 
@@ -2262,10 +2272,11 @@ function toggleRoutine(rid,key){
   save(); renderTasks();
 }
 function deleteTask(id){
+  if(!isAdmin){ showToast('삭제는 관리자만 가능합니다'); return; }
   const found=findTask(id);
   if(found){
     DB.tasks[found.key]=DB.tasks[found.key].filter(x=>x.id!==id);
-    save(); renderTasks(); renderCalendar(); showToast('삭제되었습니다');
+    save(); renderTaskTable(); renderCalendar(); renderAllTasks(); showToast('삭제되었습니다');
   }
 }
 
@@ -2291,11 +2302,12 @@ function addGroup(){
   showToast('그룹이 추가되었습니다');
 }
 function deleteGroup(id){
+  if(!isAdmin){ showToast('삭제는 관리자만 가능합니다'); return; }
   if(!confirm('그룹을 삭제할까요? 연결된 할 일에서 그룹이 해제됩니다.')) return;
   DB.groups=DB.groups.filter(g=>g.id!==id);
   Object.values(DB.tasks).flat().forEach(t=>{ if(t.groupId===id) t.groupId=''; });
   if(activeGroup===id) activeGroup='all';
-  save(); renderGroupModalList(); syncGroupSelects(); renderTasks(); renderSummary();
+  save(); renderGroupModalList(); syncGroupSelects(); renderTaskTable(); renderSummary();
 }
 function renderGroupModalList(){
   const list=document.getElementById('group-modal-list');
@@ -2393,8 +2405,9 @@ function addRoutine(){
   showToast('루틴이 추가되었습니다');
 }
 function deleteRoutine(id){
+  if(!isAdmin){ showToast('삭제는 관리자만 가능합니다'); return; }
   DB.routines=DB.routines.filter(r=>r.id!==id);
-  save(); renderRoutineModalList(); renderSummary(); renderTasks();
+  save(); renderRoutineModalList(); renderSummary(); renderTaskTable();
   showToast('루틴이 삭제되었습니다');
 }
 function renderRoutineModalList(){
