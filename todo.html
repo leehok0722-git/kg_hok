@@ -1536,12 +1536,14 @@ function makeTableRow(item, tbodyContext){
   tr.id=(tbodyContext==='task'?'task-row-':'list-row-')+item.id;
   if(item.done) tr.className='lt-done';
 
-  const grpBg=item.groupColor?item.groupColor+'26':'var(--surface2)';
-  const grpStyle=item.groupColor
-    ?'background:'+grpBg+';color:'+item.groupColor+';border:1px solid '+item.groupColor+'40'
-    :'background:var(--surface2);color:var(--tm)';
+  const gc=item.groupColor||'#5F5E5A';
+  const isHex=gc.charAt(0)==='#';
+  const grpStyle=item.group
+    ?(isHex?'background:'+gc+'26;color:'+gc+';border:1px solid '+gc+'55'
+           :'background:'+gc+';color:#fff;border:1px solid transparent')
+    :'';
   const grpTag=item.group
-    ?'<span style="font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600;'+grpStyle+'">'+esc(item.group)+'</span>'
+    ?'<span style="font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600;white-space:nowrap;'+grpStyle+'">'+esc(item.group)+'</span>'
     :'<span style="color:var(--tm)">-</span>';
 
   const ea=(kind,field)=>'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"';
@@ -1565,7 +1567,7 @@ function makeTableRow(item, tbodyContext){
 
   tr.innerHTML=
     '<td><span class="lt-kind-tag '+kindClass+'">'+kindLabel+'</span></td>'+
-    '<td class="editable" '+editAttr('group')+'>'+grpTag+'</td>'+
+    '<td class="editable" style="white-space:nowrap" '+editAttr('group')+'>'+grpTag+'</td>'+
     '<td class="editable" '+editAttr('text')+'><div class="lt-text">'+esc(item.text)+'</div></td>'+
     '<td class="editable" style="white-space:nowrap;font-size:12px" '+editAttr('startDate')+'>'+esc(item.startDate)+'</td>'+
     '<td class="editable" style="white-space:nowrap;font-size:12px" '+editAttr('endDate')+'>'+esc(item.endDate)+'</td>'+
@@ -2328,6 +2330,7 @@ function renderGroupModalList(){
 function editGroup(id){
   const g=DB.groups.find(x=>x.id===id);
   if(!g) return;
+  g._editColor=g.color;  // 색상 초기값
   const el=document.getElementById('g-item-'+id);
   if(!el) return;
   // build color swatches html
@@ -2361,12 +2364,9 @@ function saveGroup(id){
   if(!g) return;
   const name=document.getElementById('g-edit-name-'+id)?.value.trim();
   if(!name){ showToast('이름을 입력하세요'); return; }
-  // find selected color from swatch
-  const row=document.getElementById('g-color-row-'+id);
-  const selSwatch=row?.querySelector('.sel');
-  const color=selSwatch?selSwatch.style.background:g.color;
+  const color=g._editColor||g.color;  // 선택한 hex 색상 사용
   g.name=name; g.color=color; delete g._editColor;
-  save(); renderGroupModalList(); syncGroupSelects(); renderTasks(); renderSummary();
+  save(); renderGroupModalList(); syncGroupSelects(); renderTaskTable(); renderAllTasks(); renderCalendar();
   showToast('그룹이 수정되었습니다');
 }
 function syncGroupSelects(){
