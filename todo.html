@@ -1444,6 +1444,7 @@ function openAddTaskModal(){
 }
 
 function saveNewTask(){
+  if(!canEdit){ showToast('수정 권한이 없습니다'); return; }
   const text=document.getElementById('at-text').value.trim();
   if(!text){ showToast('할 일을 입력하세요'); return; }
   const startDate=document.getElementById('at-start').value||selDate||todayKey();
@@ -1558,7 +1559,7 @@ function makeTableRow(item, tbodyContext){
     ?'<span style="font-size:12px;padding:3px 10px;border-radius:99px;font-weight:600;white-space:nowrap;line-height:1.6;background:'+grpBg+';color:'+gc+'">'+esc(item.group)+'</span>'
     :'<span style="color:var(--tm)">-</span>';
 
-  const ea=(kind,field)=>'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"';
+  const ea=(kind,field)=>canEdit?'ondblclick="startCellEdit(event,\''+kind+'\',\''+item.id+'\',\''+field+'\')"':'';
   const editAttr=(field)=>item.kind==='task'?ea('task',field)
     :(field==='text'||field==='priority'?ea('routine',field):'');
 
@@ -1568,9 +1569,11 @@ function makeTableRow(item, tbodyContext){
 
   const editOnclick=tbodyContext==='task'?'editTaskRow(\''+item.id+'\')':'editListItem(\''+item.id+'\')';
   const delFn=item.kind==='task'?'deleteTask(\''+item.id+'\')':'deleteRoutine(\''+item.id+'\')';
-  const actionBtns=
-    '<button class="row-act-btn" onclick="'+editOnclick+'" title="수정">✎</button>'+
-    '<button class="row-act-btn del" onclick="'+delFn+'" title="삭제">🗑</button>';
+  // 권한별 버튼: 편집자=수정 / 관리자=수정+삭제 / 뷰어=없음
+  let actionBtns='';
+  if(canEdit) actionBtns+='<button class="row-act-btn" onclick="'+editOnclick+'" title="수정">✎</button>';
+  if(isAdmin) actionBtns+='<button class="row-act-btn del" onclick="'+delFn+'" title="삭제">🗑</button>';
+  const editableCls=canEdit?'editable':'';
 
   const kindClass=item.kind==='task'?'lt-kind-task':'lt-kind-routine';
   const kindLabel=item.kind==='task'?'일반':'루틴';
@@ -1579,13 +1582,13 @@ function makeTableRow(item, tbodyContext){
 
   tr.innerHTML=
     '<td><span class="lt-kind-tag '+kindClass+'">'+kindLabel+'</span></td>'+
-    '<td class="editable" style="white-space:nowrap" '+editAttr('group')+'>'+grpTag+'</td>'+
-    '<td class="editable" '+editAttr('text')+'><div class="lt-text">'+esc(item.text)+'</div></td>'+
-    '<td class="editable" style="white-space:nowrap;font-size:12px" '+editAttr('startDate')+'>'+esc(item.startDate)+'</td>'+
-    '<td class="editable" style="white-space:nowrap;font-size:12px" '+editAttr('endDate')+'>'+esc(item.endDate)+'</td>'+
+    '<td class="'+editableCls+'" style="white-space:nowrap" '+editAttr('group')+'>'+grpTag+'</td>'+
+    '<td class="'+editableCls+'" '+editAttr('text')+'><div class="lt-text">'+esc(item.text)+'</div></td>'+
+    '<td class="'+editableCls+'" style="white-space:nowrap;font-size:12px" '+editAttr('startDate')+'>'+esc(item.startDate)+'</td>'+
+    '<td class="'+editableCls+'" style="white-space:nowrap;font-size:12px" '+editAttr('endDate')+'>'+esc(item.endDate)+'</td>'+
     '<td><div class="'+checkClass+'" onclick="'+toggleFn+'">'+checkMark+'</div></td>'+
-    '<td class="editable" '+editAttr('priority')+'><span class="prio-badge '+PRIO_CLASS[item.priority]+'">'+PRIO_LABEL[item.priority]+'</span></td>'+
-    '<td class="editable" style="font-size:12px;color:var(--tm)" '+editAttr('description')+'>'+
+    '<td class="'+editableCls+'" '+editAttr('priority')+'><span class="prio-badge '+PRIO_CLASS[item.priority]+'">'+PRIO_LABEL[item.priority]+'</span></td>'+
+    '<td class="'+editableCls+'" style="font-size:12px;color:var(--tm)" '+editAttr('description')+'>'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
         '<span>'+(item.description||'-')+'</span>'+
       '</div>'+
@@ -1898,6 +1901,7 @@ function saveTaskRow(id){
 }
 
 function toggleListItem(kind,id){
+  if(!canEdit){ showToast('수정 권한이 없습니다'); return; }
   if(kind==='task'){
     const found=findTask(id);
     if(found){ found.task.done=!found.task.done; save(); }
