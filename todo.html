@@ -1133,6 +1133,8 @@ body {
         <option value="daily">매일 (월~금)</option>
         <option value="weekday">특정 요일</option>
         <option value="monthly">특정 날짜 (매월)</option>
+        <option value="lastbiz">매월 영업일 말일</option>
+        <option value="nthweekday">매월 N번째 주 특정 요일</option>
       </select>
     </div>
     <div id="r-type-opts"></div>
@@ -1162,6 +1164,34 @@ const COLORS = ['#2D5A3D','#185FA5','#534AB7','#993556','#854F0B','#A32D2D','#1D
 const PRIO_LABEL = {high:'높음', mid:'보통', low:'낮음'};
 const PRIO_CLASS = {high:'ph', mid:'pm', low:'pl'};
 const PILL_CLASS = {high:'pill-high', mid:'pill-mid', low:'pill-low'};
+
+// 한국 공휴일 (대체공휴일 포함) — 매년 갱신
+const HOLIDAYS = {
+  // 2026
+  '2026-01-01':'신정',
+  '2026-02-16':'설날 연휴','2026-02-17':'설날','2026-02-18':'설날 연휴',
+  '2026-03-01':'삼일절','2026-03-02':'삼일절 대체',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날','2026-05-25':'부처님오신날 대체',
+  '2026-06-06':'현충일',
+  '2026-08-15':'광복절','2026-08-17':'광복절 대체',
+  '2026-09-24':'추석 연휴','2026-09-25':'추석','2026-09-26':'추석 연휴',
+  '2026-10-03':'개천절','2026-10-05':'개천절 대체',
+  '2026-10-09':'한글날',
+  '2026-12-25':'성탄절',
+  // 2027
+  '2027-01-01':'신정',
+  '2027-02-06':'설날 연휴','2027-02-07':'설날','2027-02-08':'설날 연휴','2027-02-09':'설날 대체',
+  '2027-03-01':'삼일절',
+  '2027-05-05':'어린이날','2027-05-13':'부처님오신날',
+  '2027-06-06':'현충일','2027-06-07':'현충일 대체',
+  '2027-07-17':'제헌절',
+  '2027-08-15':'광복절','2027-08-16':'광복절 대체',
+  '2027-09-14':'추석 연휴','2027-09-15':'추석','2027-09-16':'추석 연휴',
+  '2027-10-03':'개천절','2027-10-04':'개천절 대체',
+  '2027-10-09':'한글날','2027-10-11':'한글날 대체',
+  '2027-12-25':'성탄절','2027-12-27':'성탄절 대체'
+};
+function isHoliday(key){ return !!HOLIDAYS[key]; }
 const WD_NAMES = ['일','월','화','수','목','금','토'];
 const MO_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 
@@ -1514,9 +1544,7 @@ function renderTaskTable(){
   [...rPending,...rDoneArr].forEach(r=>{
     const isDone=!!selDone[r.id];
     const grp=DB.groups.find(g=>g.id===r.groupId);
-    let rSub=typeLabel[r.type]||r.type;
-    if(r.type==='weekday') rSub+=': '+((r.weekdays||[]).map(i=>WD_NAMES[i]).join('·'));
-    if(r.type==='monthly') rSub+=` (매월 ${r.dayOfMonth}일)`;
+    let rSub=routineSubLabel(r);
     tbody.appendChild(makeTableRow({kind:'routine',id:r.id,text:r.text,group:grp?grp.name:'',groupColor:grp?grp.color:null,startDate:rSub,endDate:'-',done:isDone,priority:r.priority,description:''},'task'));
   });
 
@@ -1729,9 +1757,7 @@ function getAllItems(){
   const typeLabel={daily:'매일(월~금)',weekday:'특정 요일',monthly:'특정 날짜'};
   DB.routines.forEach(r=>{
     const grp=DB.groups.find(g=>g.id===r.groupId);
-    let rSub=typeLabel[r.type]||r.type;
-    if(r.type==='weekday') rSub+=': '+((r.weekdays||[]).map(i=>WD_NAMES[i]).join('·'));
-    if(r.type==='monthly') rSub+=` (매월 ${r.dayOfMonth}일)`;
+    let rSub=routineSubLabel(r);
     items.push({
       kind:'routine', kindLabel:'루틴',
       id:r.id, storeKey:null,
@@ -1925,6 +1951,33 @@ function sortTasks(arr){
     return (a.text||'').localeCompare(b.text||'','ko');
   });
 }
+// 그 달의 영업일 말일(마지막 평일) 날짜(1~31) 반환
+function lastBizDayOfMonth(y,m){ // m: 1~12
+  let d=new Date(y,m,0); // 그 달 마지막 날
+  const key=dd=>`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+  // 토·일 또는 공휴일이면 하루씩 앞으로
+  while(d.getDay()===0||d.getDay()===6||isHoliday(key(d))) d.setDate(d.getDate()-1);
+  return d.getDate();
+}
+// 해당 날짜가 그 달에서 같은 요일 기준 몇 번째인지(1~5), 그리고 마지막인지 반환
+function weekdayOccurrence(y,m,d){ // m:1~12
+  const nth=Math.floor((d-1)/7)+1;
+  const lastDay=new Date(y,m,0).getDate();
+  const isLast=(d+7>lastDay);
+  return {nth, isLast};
+}
+
+// 루틴 반복 설명 텍스트 생성 (공통)
+function routineSubLabel(r){
+  const WK={'1':'첫째','2':'둘째','3':'셋째','4':'넷째','last':'마지막'};
+  if(r.type==='daily') return '매일 (월~금)';
+  if(r.type==='weekday') return '특정 요일: '+((r.weekdays||[]).map(i=>WD_NAMES[i]).join('·'));
+  if(r.type==='monthly') return `특정 날짜 (매월 ${r.dayOfMonth}일)`;
+  if(r.type==='lastbiz') return '매월 영업일 말일';
+  if(r.type==='nthweekday') return `매월 ${WK[r.nthWeek]||r.nthWeek} 주 ${WD_NAMES[r.nthWeekday]}요일`;
+  return r.type;
+}
+
 function routinesForDate(key){
   const [y,m,d]=key.split('-').map(Number);
   const wd=new Date(y,m-1,d).getDay(); // 0=Sun, 6=Sat
@@ -1932,6 +1985,13 @@ function routinesForDate(key){
     if(r.type==='daily') return wd>=1&&wd<=5; // 월~금
     if(r.type==='weekday') return (r.weekdays||[]).includes(wd);
     if(r.type==='monthly') return r.dayOfMonth===d;
+    if(r.type==='lastbiz') return lastBizDayOfMonth(y,m)===d; // 영업일 말일
+    if(r.type==='nthweekday'){
+      if(wd!==r.nthWeekday) return false; // 요일 불일치
+      const {nth,isLast}=weekdayOccurrence(y,m,d);
+      if(r.nthWeek==='last') return isLast;       // 마지막 주
+      return nth===Number(r.nthWeek);             // N번째 주
+    }
     return false;
   });
 }
@@ -2001,13 +2061,23 @@ function renderCalendar(){
 function makeCell(d,key,today,ghost){
   const [ky,km,kd]=key.split('-').map(Number);
   const wd=new Date(ky,km-1,kd).getDay();
+  const holiday=HOLIDAYS[key];
   const td=document.createElement('td');
-  td.className='cal-cell'+(ghost?' ghost':wd===0?' cell-sun':wd===6?' cell-sat':'');
+  td.className='cal-cell'+(ghost?' ghost':(wd===0||holiday)?' cell-sun':wd===6?' cell-sat':'');
   if(!ghost&&key===today) td.classList.add('today');
   if(!ghost&&key===selDate) td.classList.add('selected');
 
+  const numWrap=document.createElement('div');
+  numWrap.style.cssText='display:flex;align-items:center;gap:5px;flex-wrap:wrap';
   const numEl=document.createElement('div'); numEl.className='cell-num'; numEl.textContent=d;
-  td.appendChild(numEl);
+  numWrap.appendChild(numEl);
+  if(holiday&&!ghost){
+    const h=document.createElement('span');
+    h.textContent=holiday;
+    h.style.cssText='font-size:10px;color:#C0392B;font-weight:600;line-height:1.2';
+    numWrap.appendChild(h);
+  }
+  td.appendChild(numWrap);
 
   // 달력에는 우선순위 '높음'만 표시 (일반 + 루틴)
   const highTasks=tasksForCell(key).filter(t=>t.priority==='high')
@@ -2082,9 +2152,7 @@ function renderSummary(){
       html+=`<table class="rs-table"><thead><tr><th>루틴</th><th>반복</th><th>우선순위</th><th style="min-width:120px">그룹</th></tr></thead><tbody>`;
       [...pending,...done].forEach(r=>{
         const grp=DB.groups.find(g=>g.id===r.groupId);
-        let rSub=typeLabel[r.type]||r.type;
-        if(r.type==='weekday') rSub+=' ('+((r.weekdays||[]).map(i=>WD_NAMES[i]).join(', '))+')';
-        if(r.type==='monthly') rSub+=` (매월 ${r.dayOfMonth}일)`;
+        let rSub=routineSubLabel(r);
         const isDone=!!selDone[r.id];
         const rowStyle=isDone?'opacity:.5':'';
         const textStyle=isDone?'text-decoration:line-through':'';
@@ -2411,7 +2479,15 @@ function renderRTypeOpts(){
     WD_NAMES.forEach((w,i)=>{ const b=document.createElement('button'); b.className='wd-btn'; b.textContent=w; b.type='button'; b.dataset.wd=i; b.onclick=()=>b.classList.toggle('sel'); document.getElementById('wd-row').appendChild(b); });
   } else if(type==='monthly'){
     opts.innerHTML=`<div class="form-row"><label class="form-label">날짜 (1~31)</label><input class="form-input" id="r-dom" type="number" min="1" max="31" value="1"></div>`;
-  } else { opts.innerHTML=''; }
+  } else if(type==='nthweekday'){
+    const weekOpts='<option value="1">첫째 주</option><option value="2">둘째 주</option><option value="3">셋째 주</option><option value="4">넷째 주</option><option value="last">마지막 주</option>';
+    const wdayOpts=WD_NAMES.map((w,i)=>`<option value="${i}">${w}요일</option>`).join('');
+    opts.innerHTML=`<div class="form-row"><label class="form-label">주차 / 요일</label>
+      <div style="display:flex;gap:8px">
+        <select class="form-input" id="r-nthweek" style="flex:1">${weekOpts}</select>
+        <select class="form-input" id="r-nthwday" style="flex:1">${wdayOpts}</select>
+      </div></div>`;
+  } else { opts.innerHTML=''; } // daily, lastbiz는 추가 옵션 없음
 }
 function addRoutine(){
   const name=document.getElementById('r-name').value.trim();
@@ -2424,10 +2500,14 @@ function addRoutine(){
     r.weekdays=wds;
   } else if(type==='monthly'){
     r.dayOfMonth=Math.max(1,Math.min(31,parseInt(document.getElementById('r-dom').value)||1));
+  } else if(type==='nthweekday'){
+    r.nthWeek=document.getElementById('r-nthweek').value;       // '1'~'4' or 'last'
+    r.nthWeekday=parseInt(document.getElementById('r-nthwday').value); // 0~6
   }
+  // lastbiz, daily는 추가 필드 없음
   DB.routines.push(r);
   document.getElementById('r-name').value='';
-  save(); renderRoutineModalList(); renderSummary(); renderTasks();
+  save(); renderRoutineModalList(); renderSummary(); renderTaskTable();
   showToast('루틴이 추가되었습니다');
 }
 function deleteRoutine(id){
@@ -2440,11 +2520,8 @@ function renderRoutineModalList(){
   const list=document.getElementById('routine-modal-list');
   if(!DB.routines.length){ list.innerHTML='<div style="font-size:12px;color:var(--tm);margin-top:8px">등록된 루틴이 없습니다</div>'; return; }
   list.innerHTML='<div style="font-size:11px;color:var(--tm);font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px">등록된 루틴</div>';
-  const tl={daily:'매일(월~금)',weekday:'요일',monthly:'날짜'};
   DB.routines.forEach(r=>{
-    let sub=tl[r.type]||r.type;
-    if(r.type==='weekday') sub+=': '+((r.weekdays||[]).map(i=>WD_NAMES[i]).join(', '));
-    if(r.type==='monthly') sub+=` (매월 ${r.dayOfMonth}일)`;
+    let sub=routineSubLabel(r);
     const grp=DB.groups.find(g=>g.id===r.groupId);
     const el=document.createElement('div'); el.id='r-item-'+r.id; el.className='modal-list-item';
     el.innerHTML=`<div style="flex:1"><div>${esc(r.text)}${grp?` <span style="font-size:10px;padding:1px 6px;border-radius:99px;background:${grp.color}22;color:var(--tp)">${esc(grp.name)}</span>`:''}</div><div class="mli-sub">${sub}</div></div><button class="btn btn-sm" onclick="editRoutine('${r.id}')">수정</button><button class="btn btn-sm btn-danger" onclick="deleteRoutine('${r.id}')">삭제</button>`;
@@ -2460,6 +2537,12 @@ function rTypeOptsHtml(type, weekdays, dayOfMonth){
   if(type==='monthly'){
     return `<div class="mli-edit-row"><span class="mli-edit-label">날짜</span><input class="mli-edit-input" type="number" id="r-edit-dom" min="1" max="31" value="${dayOfMonth||1}" style="width:70px;flex:none"></div>`;
   }
+  if(type==='nthweekday'){
+    const nw=arguments[3]||'1', nwd=arguments[4]||0;
+    const weekOpts=[['1','첫째 주'],['2','둘째 주'],['3','셋째 주'],['4','넷째 주'],['last','마지막 주']].map(([v,l])=>`<option value="${v}"${String(nw)===v?' selected':''}>${l}</option>`).join('');
+    const wdayOpts=WD_NAMES.map((w,i)=>`<option value="${i}"${Number(nwd)===i?' selected':''}>${w}요일</option>`).join('');
+    return `<div class="mli-edit-row"><span class="mli-edit-label">주차/요일</span><div style="display:flex;gap:6px;flex:1"><select class="mli-edit-select" id="r-edit-nthweek" style="flex:1">${weekOpts}</select><select class="mli-edit-select" id="r-edit-nthwday" style="flex:1">${wdayOpts}</select></div></div>`;
+  }
   return '';
 }
 
@@ -2469,9 +2552,9 @@ function editRoutine(id){
   const el=document.getElementById('r-item-'+id);
   if(!el) return;
   const prioOpts=['high','mid','low'].map(p=>`<option value="${p}"${r.priority===p?' selected':''}>${PRIO_LABEL[p]}</option>`).join('');
-  const typeOpts=['daily','weekday','monthly'].map(t=>`<option value="${t}"${r.type===t?' selected':''}>${{daily:'매일(월~금)',weekday:'특정 요일',monthly:'특정 날짜'}[t]}</option>`).join('');
+  const typeOpts=['daily','weekday','monthly','lastbiz','nthweekday'].map(t=>`<option value="${t}"${r.type===t?' selected':''}>${{daily:'매일(월~금)',weekday:'특정 요일',monthly:'특정 날짜',lastbiz:'매월 영업일 말일',nthweekday:'매월 N번째 주 요일'}[t]}</option>`).join('');
   const grpOpts='<option value="">그룹 없음</option>'+DB.groups.map(g=>`<option value="${g.id}"${r.groupId===g.id?' selected':''}>${esc(g.name)}</option>`).join('');
-  const typeOptsHtml=rTypeOptsHtml(r.type, r.weekdays, r.dayOfMonth);
+  const typeOptsHtml=rTypeOptsHtml(r.type, r.weekdays, r.dayOfMonth, r.nthWeek, r.nthWeekday);
 
   el.outerHTML=`<div id="r-item-${id}" class="mli-edit-form">
     <div class="mli-edit-row">
@@ -2522,14 +2605,18 @@ function saveRoutine(id){
     r.weekdays=wds; delete r.dayOfMonth;
   } else if(type==='monthly'){
     r.dayOfMonth=Math.max(1,Math.min(31,parseInt(document.getElementById('r-edit-dom')?.value)||1));
-    delete r.weekdays;
-  } else {
+    delete r.weekdays; delete r.nthWeek; delete r.nthWeekday;
+  } else if(type==='nthweekday'){
+    r.nthWeek=document.getElementById('r-edit-nthweek')?.value||'1';
+    r.nthWeekday=parseInt(document.getElementById('r-edit-nthwday')?.value)||0;
     delete r.weekdays; delete r.dayOfMonth;
+  } else {
+    delete r.weekdays; delete r.dayOfMonth; delete r.nthWeek; delete r.nthWeekday;
   }
   r.text=name; r.type=type;
   r.priority=document.getElementById('r-edit-prio-'+id)?.value||r.priority;
   r.groupId=document.getElementById('r-edit-grp-'+id)?.value||'';
-  save(); renderRoutineModalList(); renderSummary(); renderTasks();
+  save(); renderRoutineModalList(); renderSummary(); renderTaskTable();
   showToast('루틴이 수정되었습니다');
 }
 
