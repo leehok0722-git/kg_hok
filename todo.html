@@ -1133,8 +1133,8 @@ body {
         <option value="daily">매일 (월~금)</option>
         <option value="weekday">특정 요일</option>
         <option value="monthly">특정 날짜 (매월)</option>
-        <option value="lastbiz">매월 영업일 말일</option>
-        <option value="nthweekday">매월 N번째 주 특정 요일</option>
+        <option value="lastbiz">매월 마지막 영업일</option>
+        <option value="nthweekday">n번째 주 특정 요일</option>
       </select>
     </div>
     <div id="r-type-opts"></div>
@@ -1173,6 +1173,7 @@ const HOLIDAYS = {
   '2026-03-01':'삼일절','2026-03-02':'삼일절 대체',
   '2026-05-05':'어린이날','2026-05-24':'부처님오신날','2026-05-25':'부처님오신날 대체',
   '2026-06-06':'현충일',
+  '2026-07-17':'제헌절',
   '2026-08-15':'광복절','2026-08-17':'광복절 대체',
   '2026-09-24':'추석 연휴','2026-09-25':'추석','2026-09-26':'추석 연휴',
   '2026-10-03':'개천절','2026-10-05':'개천절 대체',
@@ -1973,7 +1974,7 @@ function routineSubLabel(r){
   if(r.type==='daily') return '매일 (월~금)';
   if(r.type==='weekday') return '특정 요일: '+((r.weekdays||[]).map(i=>WD_NAMES[i]).join('·'));
   if(r.type==='monthly') return `특정 날짜 (매월 ${r.dayOfMonth}일)`;
-  if(r.type==='lastbiz') return '매월 영업일 말일';
+  if(r.type==='lastbiz') return '매월 마지막 영업일';
   if(r.type==='nthweekday') return `매월 ${WK[r.nthWeek]||r.nthWeek} 주 ${WD_NAMES[r.nthWeekday]}요일`;
   return r.type;
 }
@@ -2552,7 +2553,7 @@ function editRoutine(id){
   const el=document.getElementById('r-item-'+id);
   if(!el) return;
   const prioOpts=['high','mid','low'].map(p=>`<option value="${p}"${r.priority===p?' selected':''}>${PRIO_LABEL[p]}</option>`).join('');
-  const typeOpts=['daily','weekday','monthly','lastbiz','nthweekday'].map(t=>`<option value="${t}"${r.type===t?' selected':''}>${{daily:'매일(월~금)',weekday:'특정 요일',monthly:'특정 날짜',lastbiz:'매월 영업일 말일',nthweekday:'매월 N번째 주 요일'}[t]}</option>`).join('');
+  const typeOpts=['daily','weekday','monthly','lastbiz','nthweekday'].map(t=>`<option value="${t}"${r.type===t?' selected':''}>${{daily:'매일(월~금)',weekday:'특정 요일',monthly:'특정 날짜',lastbiz:'매월 마지막 영업일',nthweekday:'n번째 주 특정 요일'}[t]}</option>`).join('');
   const grpOpts='<option value="">그룹 없음</option>'+DB.groups.map(g=>`<option value="${g.id}"${r.groupId===g.id?' selected':''}>${esc(g.name)}</option>`).join('');
   const typeOptsHtml=rTypeOptsHtml(r.type, r.weekdays, r.dayOfMonth, r.nthWeek, r.nthWeekday);
 
