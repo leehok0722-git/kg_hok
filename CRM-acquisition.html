@@ -55,6 +55,11 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .summary-pill:hover{background:#F1F3F7}
 .summary-pill[aria-pressed="true"]{border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft)}
 .summary-pill .n{font-variant-numeric:tabular-nums; color:var(--ink)}
+.summary-pill-excl{border-color:var(--danger-soft); color:var(--danger)}
+.summary-pill-excl .n{color:var(--danger)}
+.summary-pill-excl:hover{background:var(--danger-soft)}
+.summary-pill-excl[aria-pressed="true"]{border-color:var(--danger); color:#fff; background:var(--danger)}
+.summary-pill-excl[aria-pressed="true"] .n{color:#fff}
 .summary-link{display:inline-flex; align-items:center; gap:5px; padding:6px 13px; border:1px solid var(--accent); border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); font-size:12.5px; font-weight:700; text-decoration:none; white-space:nowrap;}
 .summary-link:hover{background:#E1E7FB}
 
@@ -308,7 +313,8 @@ const CHIPS = [
   {id:"s2",  label:"2차 신청",       test:r=>!!r.mail2Date && !!r.apply2Date},
   {id:"s3",  label:"계약서 발송",     test:r=>!!r.mail2Date && !!r.apply2Date && !!r.contractSentDate},
   {id:"s4",  label:"계약 완료",      test:r=>!!r.mail2Date && !!r.apply2Date && !!r.contractSentDate && !!r.contractDoneDate},
-  {id:"s5",  label:"추가 계정 생성",  test:r=>!!r.mail2Date && !!r.apply2Date && !!r.contractSentDate && !!r.contractDoneDate && !!r.extraAcctDate}
+  {id:"s5",  label:"추가 계정 생성",  test:r=>!!r.mail2Date && !!r.apply2Date && !!r.contractSentDate && !!r.contractDoneDate && !!r.extraAcctDate},
+  {id:"excl",label:"제외",          test:r=>r.blocked==="Y"}
 ];
 
 /* ============================================================
@@ -496,7 +502,7 @@ function renderSummary(){
   const box=document.getElementById("summary"); box.innerHTML="";
   CHIPS.forEach(c=>{
     const n = c.id ? ALL.filter(c.test).length : ALL.length;
-    const pill=document.createElement("button"); pill.className="summary-pill";
+    const pill=document.createElement("button"); pill.className="summary-pill"+(c.id==="excl"?" summary-pill-excl":"");
     pill.setAttribute("aria-pressed", chip===c.id);
     pill.innerHTML=`${c.label}<span class="n">${n}</span>`;
     pill.addEventListener("click",()=>{ chip = chip===c.id ? "" : c.id; render(); });
