@@ -82,6 +82,10 @@ td.date-cell{color:var(--ink)}
 td.date-cell.empty-date{color:#C2C8D0}
 .mono{font-family:var(--mono); font-size:13px}
 td.dup-biz{color:var(--danger); font-weight:700}
+.block-check{width:16px; height:16px; cursor:pointer; accent-color:var(--danger)}
+tbody tr.blocked td{color:#A7AEB7}
+tbody tr.blocked td:not(.fz-bul):not(.fz-memo):not(:last-child){text-decoration:line-through}
+tbody tr.blocked td.dup-biz{color:#A7AEB7}
 td.editable{cursor:cell}
 td.memo-col{max-width:220px}
 .memo-ellipsis{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -94,7 +98,8 @@ tbody tr:hover td.fz{background:#F8FAFC}
 td.fz-idx, th.fz-idx{left:0}
 td.fz-biz, th.fz-biz{left:48px; width:118px; min-width:118px; max-width:118px}
 td.fz-name, th.fz-name{left:166px; width:150px; min-width:150px; max-width:150px}
-td.fz-memo, th.fz-memo{left:316px; width:46px; min-width:46px; max-width:46px; box-shadow:1px 0 0 var(--line-strong); text-align:center}
+td.fz-bul, th.fz-bul{left:316px; width:52px; min-width:52px; max-width:52px; text-align:center}
+td.fz-memo, th.fz-memo{left:368px; width:46px; min-width:46px; max-width:46px; box-shadow:1px 0 0 var(--line-strong); text-align:center}
 @media (max-width:700px){ td.fz, th.fz{position:static} td.fz-memo, th.fz-memo{box-shadow:none} }
 
 .memo-icon-btn{border:1px solid var(--line); background:var(--surface); border-radius:7px; width:30px; height:30px; cursor:pointer; color:var(--muted); display:inline-flex; align-items:center; justify-content:center; transition:.12s; padding:0}
@@ -280,6 +285,7 @@ const LS_KEY = "kg_hok_customers";
 const FIELDS = [
   {key:"bizNo",            label:"사업자등록번호",       type:"bizno"},
   {key:"companyName",      label:"상호명",              type:"text"},
+  {key:"blocked",          label:"제외",                type:"check"},
   {key:"applyDate",        label:"신청일",              type:"date"},
   {key:"creditResult",     label:"기업 신용 결과",       type:"text"},
   {key:"mail2Date",        label:"2차 신청 메일 발송일",  type:"date"},
@@ -381,6 +387,12 @@ function ynButton(val,id,key){
 function cellContent(td,f,r){
   const v=r[f.key];
   if(f.type==="yn"){ td.appendChild(ynButton(v,r.id,f.key)); return; }   // Y/N은 클릭 토글 유지
+  if(f.type==="check"){
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.className="block-check"; cb.checked=v==="Y"; cb.title="제외(이탈/탈락) 표시";
+    if(canEdit){ cb.addEventListener("change",async()=>{ const rec=ALL.find(x=>x.id===r.id); if(!rec)return; await Store.upsert({...rec,[f.key]:cb.checked?"Y":"N"}); }); }
+    else cb.disabled=true;
+    td.appendChild(cb); return;
+  }
   if(f.type==="date"){ td.className="date-cell"+(v?"":" empty-date"); td.textContent=v?fmtDate(v):"–"; }
   else if(f.type==="bizno"){ td.className="mono"; const digits=(v||"").replace(/\D/g,""); td.textContent=digits; if(digits && DUP_BIZ.has(digits)) td.classList.add("dup-biz"); }
   else if(f.key==="memo"){ td.className="memo-col"; const d=document.createElement("div"); d.className="memo-ellipsis"; d.textContent=(v||"").replace(/\s*\n\s*/g," "); td.appendChild(d); }
@@ -431,10 +443,11 @@ function render(){
     const th=document.createElement("th"); th.className="sortable"+(sortKey===f.key?" sorted":"");
     if(f.key==="bizNo") th.className+=" fz fz-biz";
     if(f.key==="companyName") th.className+=" fz fz-name";
+    if(f.key==="blocked") th.className+=" fz fz-bul";
     th.innerHTML=f.label+`<span class="arrow">${sortKey===f.key?(sortDir>0?"▲":"▼"):"↕"}</span>`;
     th.addEventListener("click",()=>{ if(sortKey===f.key)sortDir*=-1; else{sortKey=f.key;sortDir=1;} render(); });
     hr.appendChild(th);
-    if(f.key==="companyName"){ const mth=document.createElement("th"); mth.className="fz fz-memo"; mth.textContent="메모"; hr.appendChild(mth); }
+    if(f.key==="blocked"){ const mth=document.createElement("th"); mth.className="fz fz-memo"; mth.textContent="메모"; hr.appendChild(mth); }
   });
   hr.appendChild(document.createElement("th"));
   const tb=document.getElementById("tbody"); tb.innerHTML="";
@@ -445,6 +458,7 @@ function render(){
   }
   rows.forEach((r,i)=>{
     const tr=document.createElement("tr");
+    if(r.blocked==="Y") tr.classList.add("blocked");
     tr.addEventListener("mousemove",e=>{ if(r.memo) showMemoTip(r.memo,e.clientX,e.clientY); else hideMemoTip(); });
     tr.addEventListener("mouseleave",hideMemoTip);
     const idx=document.createElement("td"); idx.className="idx fz fz-idx"; idx.textContent=i+1; tr.appendChild(idx);
@@ -453,8 +467,9 @@ function render(){
       const td=document.createElement("td"); cellContent(td,f,r);
       if(f.key==="bizNo") td.classList.add("fz","fz-biz");
       if(f.key==="companyName") td.classList.add("fz","fz-name");
+      if(f.key==="blocked") td.classList.add("fz","fz-bul");
       tr.appendChild(td);
-      if(f.key==="companyName"){
+      if(f.key==="blocked"){
         const mtd=document.createElement("td"); mtd.className="fz fz-memo";
         const mb=document.createElement("button"); mb.className="memo-icon-btn"+(r.memo?" has-memo":"");
         mb.title=r.memo?"메모 보기·수정":"메모 추가";
@@ -513,7 +528,7 @@ function openDrawer(rec){
   list.forEach(f=>{
     const field=document.createElement("div"); field.className="field";
     const lab=document.createElement("label"); lab.textContent=f.label; field.appendChild(lab);
-    if(f.type==="yn"){
+    if(f.type==="yn"||f.type==="check"){
       const seg=document.createElement("div"); seg.className="seg";
       ["N","Y"].forEach(opt=>{ const b=document.createElement("button"); b.textContent=opt;
         const cur=editing[f.key]==="Y"?"Y":"N"; if(cur===opt)b.classList.add("active");
@@ -545,7 +560,7 @@ async function saveDrawer(){
   if(!editing)return;
   const rec={...editing};
   if(!rec._created) rec._created=new Date().toISOString();
-  FIELDS.filter(f=>f.type==="yn").forEach(f=>{ if(rec[f.key]!=="Y")rec[f.key]="N"; });
+  FIELDS.filter(f=>f.type==="yn"||f.type==="check").forEach(f=>{ if(rec[f.key]!=="Y")rec[f.key]="N"; });
   await Store.upsert(rec); closeDrawer(); showToast(editing.id?"저장됨":"고객이 추가됐습니다");
 }
 
@@ -560,6 +575,7 @@ function exportCSV(){
   rows.forEach((r,i)=>{
     const cells=[i+1,...FIELDS.map(f=>{ const v=r[f.key];
       if(f.type==="yn")return v==="Y"?"Y":"N";
+      if(f.type==="check")return v==="Y"?"제외":"";
       if(f.type==="bizno")return (v||"").replace(/\D/g,"");
       if(f.type==="date")return v?fmtDate(v):"";
       return v??""; })];
@@ -604,7 +620,7 @@ async function importFile(file){
       const f=labelToKey[String(h).trim()]; if(!f) return;
       let v=row[h]; if(v===""||v==null) return;
       matchedCols.add(f.label);
-      if(f.type==="yn") rec[f.key]=_normYN(v);
+      if(f.type==="yn"||f.type==="check") rec[f.key]=_normYN(v);
       else if(f.type==="date") rec[f.key]=_normDate(v);
       else if(f.type==="bizno") rec[f.key]=fmtBizNo(String(v));
       else rec[f.key]=String(v);
@@ -626,7 +642,7 @@ async function importFile(file){
     const match=k && byBiz[k];
     const out = match ? {...match, ...rec} : rec;
     if(!out._created) out._created=new Date().toISOString();
-    if(!match) FIELDS.filter(f=>f.type==="yn").forEach(f=>{ if(out[f.key]!=="Y") out[f.key]="N"; });
+    if(!match) FIELDS.filter(f=>f.type==="yn"||f.type==="check").forEach(f=>{ if(out[f.key]!=="Y") out[f.key]="N"; });
     try{ await Store.upsert(out); n++; }catch(e){ console.error(e); }
   }
   showToast(`${n}건을 가져왔습니다`);
